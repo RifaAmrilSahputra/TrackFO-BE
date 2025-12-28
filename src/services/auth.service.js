@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import { compare } from 'bcrypt'
-import { signToken } from '../utils/jwt'
+import { signToken } from '../utils/jwt.js'
 
 const prisma = new PrismaClient()
 

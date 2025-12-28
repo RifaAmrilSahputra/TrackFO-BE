@@ -1,4 +1,4 @@
-import userService from '../services/user.service'
+import userService from '../services/user.service.js'
 
 function isValidEmail(email) {
   const regex = /^[^\s@]+@[^^\s@]+\.[^\s@]+$/

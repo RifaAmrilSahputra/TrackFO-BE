@@ -1,8 +1,8 @@
-const express = require('express')
-const cors = require('cors')
+import express from 'express'
+import cors from 'cors'
 
-const routes = require('./routes')
-const errorMiddleware = require('./middlewares/error.middleware')
+import routes from './routes/index.js'
+import errorMiddleware from './middlewares/error.middleware.js'
 
 const app = express()
 
@@ -13,4 +13,4 @@ app.use('/api', routes)
 
 app.use(errorMiddleware)
 
-module.exports = app
+export default app
