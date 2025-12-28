@@ -89,4 +89,37 @@ async function createUser(req, res, next) {
   }
 }
 
-export { deleteUser, createUser }
+async function getAllTeknisi(req, res, next) {
+  try {
+    const authUser = req.user
+
+    const isAdmin = (authUser.roles && authUser.roles.includes('ADMIN')) || authUser.role === 'admin'
+    if (!isAdmin) {
+      return res.status(403).json({ success: false, message: 'Akses ditolak' })
+    }
+
+    const teknisiUsers = await userService.getTeknisiUsers()
+
+    const formattedData = teknisiUsers.map(user => ({
+      id: user.id_user,
+      name: user.nama,
+      email: user.email,
+      roles: user.roles.map(ur => ur.role.nama_role),
+      phone: user.teknisi?.no_hp || null,
+      area_kerja: user.teknisi?.area_kerja || null,
+      alamat: user.teknisi?.alamat || null,
+      koordinat: user.teknisi?.koordinat || null,
+      createdAt: user.createdAt,
+    }))
+
+    res.status(200).json({
+      success: true,
+      message: 'Data teknisi berhasil diambil',
+      data: formattedData,
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export { deleteUser, createUser, getAllTeknisi }

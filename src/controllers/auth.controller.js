@@ -23,4 +23,18 @@ async function login(req, res, next) {
   }
 }
 
-export { login }
+async function logout(req, res, next) {
+  try {
+    // Simple token-based logout: Client-side cleanup
+    // Server just confirms logout request
+    
+    res.json({
+      success: true,
+      message: 'Logout berhasil. Silakan hapus token dari client side.',
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export { login, logout }

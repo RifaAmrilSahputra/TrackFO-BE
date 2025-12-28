@@ -82,6 +82,28 @@ async function createUserWithRolesAndTeknisi({ name, email, password, roles = ['
   })
 }
 
+async function getTeknisiUsers() {
+  return prisma.user.findMany({
+    where: {
+      roles: {
+        some: {
+          role: {
+            nama_role: 'teknisi'
+          }
+        }
+      }
+    },
+    include: {
+      roles: {
+        include: {
+          role: true
+        }
+      },
+      teknisi: true
+    }
+  })
+}
+
 async function deleteUser(id) {
   const idNum = Number(id)
   return prisma.$transaction(async (tx) => {
@@ -98,5 +120,6 @@ export default {
   assignRoles,
   createDataTeknisi,
   createUserWithRolesAndTeknisi,
+  getTeknisiUsers,
   deleteUser,
 }
