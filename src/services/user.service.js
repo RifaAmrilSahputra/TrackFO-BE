@@ -1,146 +1,193 @@
-import { PrismaClient } from '@prisma/client'
-import { hash } from 'bcrypt'
+import prisma from '../../config/prisma.js'
+import bcrypt from 'bcrypt'
 
-const prisma = new PrismaClient()
-
-async function getUserByEmail(email) {
-  return prisma.user.findUnique({ where: { email } })
+/**
+ * Helper: Format Response User
+ * Menstandarisasi output agar Controller selalu menerima bentuk data yang sama
+ */
+const formatUserResponse = (user) => {
+  if (!user) return null
+  return {
+    id: user.id,
+    nama: user.nama,
+    email: user.email,
+    isActive: user.isActive,
+    roles: user.roles?.map(ur => ur.role.nama_role) || [],
+    teknisi: user.teknisi ? {
+      noHp: user.teknisi.noHp,
+      areaKerja: user.teknisi.areaKerja,
+      alamat: user.teknisi.alamat,
+      latitude: user.teknisi.latitude,
+      longitude: user.teknisi.longitude,
+    } : null,
+    createdAt: user.createdAt
+  }
 }
 
-async function getUserById(id) {
-  return prisma.user.findUnique({ where: { id_user: Number(id) } })
-}
+/**
+ * CREATE USER & PROFILE (Atomic Transaction)
+ */
+async function createUserWithProfile(data) {
+  const { nama, email, password, roles, noHp, areaKerja, alamat, latitude, longitude } = data
 
-async function assignRole(id_user, roleName) {
-  const role = await prisma.role.findUnique({ where: { nama_role: roleName } })
-  if (!role) return null
-  return prisma.userRole.create({ data: { id_user, id_role: role.id_role } })
-}
+  return await prisma.$transaction(async (tx) => {
+    // 1. Cek Email (Model 1: Gunakan toLowerCase)
+    const existing = await tx.user.findUnique({ where: { email: email.toLowerCase() } })
+    if (existing) throw { statusCode: 409, message: 'Email sudah terdaftar' }
 
-async function assignRoles(id_user, roles = []) {
-  return Promise.all(
-    roles.map(r => assignRole(id_user, r))
-  )
-}
+    // 2. Ambil semua Role dalam 1 Query (Optimasi Model 1 & 2)
+    const roleRecords = await tx.role.findMany({
+      where: { nama_role: { in: roles.map(r => r.toUpperCase()) } }
+    })
 
-async function createDataTeknisi({ id_user, no_hp, area_kerja, alamat = null, koordinat = null }) {
-  return prisma.dataTeknisi.create({
-    data: {
-      id_teknisi: id_user,
-      no_hp: no_hp || '',
-      area_kerja: area_kerja || '',
-      alamat,
-      koordinat,
-    },
+    if (roleRecords.length === 0) throw { statusCode: 400, message: 'Role tidak valid' }
+
+    // 3. Hash Password
+    const hashedPassword = await bcrypt.hash(password, 12)
+
+    // 4. Create User + Roles + Teknisi (Nested Write)
+    const user = await tx.user.create({
+      data: {
+        nama,
+        email: email.toLowerCase(),
+        password: hashedPassword,
+        roles: {
+          create: roleRecords.map(role => ({
+            role: { connect: { id: role.id } }
+          }))
+        },
+        // Hanya buat data teknisi jika role TEKNISI dipilih
+        ...(roles.includes('TEKNISI') && {
+          teknisi: {
+            create: {
+              noHp: noHp ?? '',
+              areaKerja: areaKerja ?? '',
+              alamat,
+              latitude: latitude ? parseFloat(latitude) : null,
+              longitude: longitude ? parseFloat(longitude) : null,
+            }
+          }
+        })
+      },
+      include: {
+        roles: { include: { role: true } },
+        teknisi: true
+      }
+    })
+
+    return formatUserResponse(user)
   })
 }
 
-async function createUserWithRolesAndTeknisi({ name, email, password, roles = ['teknisi'], phone = null, area_kerja = null, alamat = null, koordinat = null }) {
-  return prisma.$transaction(async (tx) => {
-    // check email
-    const exists = await tx.user.findUnique({ where: { email } })
-    if (exists) {
-      const err = new Error('Email sudah terdaftar')
-      err.statusCode = 409
-      throw err
-    }
+/**
+ * UPDATE FULL PROFILE (Transaction)
+ */
+async function updateFullUserProfile(id, data) {
+  const userId = Number(id)
 
-    const hashed = await hash(password, 10)
+  return await prisma.$transaction(async (tx) => {
+    // 1. Update Data Dasar User
+    const userUpdateData = {}
+    if (data.nama) userUpdateData.nama = data.nama
+    if (data.email) userUpdateData.email = data.email.toLowerCase()
 
-    const user = await tx.user.create({
-      data: {
-        nama: name,
-        email,
-        password: hashed,
-      },
-    })
-
-    // assign roles in parallel
-    const roleRecords = await Promise.all(
-      roles.map(rn => tx.role.findUnique({ where: { nama_role: rn } }))
-    )
-
-    await Promise.all(
-      roleRecords.filter(Boolean).map(role => tx.userRole.create({ data: { id_user: user.id_user, id_role: role.id_role } }))
-    )
-
-    // create teknisi data if needed
-    if (roles.includes('teknisi') && (phone || area_kerja || alamat || koordinat)) {
-      await tx.dataTeknisi.create({
-        data: {
-          id_teknisi: user.id_user,
-          no_hp: phone || '',
-          area_kerja: area_kerja || '',
-          alamat: alamat || null,
-          koordinat: koordinat || null,
-        },
+    if (Object.keys(userUpdateData).length > 0) {
+      await tx.user.update({
+        where: { id: userId },
+        data: userUpdateData
       })
     }
 
-    const { password: _p, ...rest } = user
-    return rest
+    // 2. Update Data Teknisi (Upsert: Jika belum ada maka buat, jika ada maka update)
+    if (data.noHp || data.areaKerja || data.alamat || data.latitude !== undefined) {
+      await tx.dataTeknisi.upsert({
+        where: { userId: userId },
+        update: {
+          noHp: data.noHp,
+          areaKerja: data.areaKerja,
+          alamat: data.alamat,
+          latitude: data.latitude ? parseFloat(data.latitude) : undefined,
+          longitude: data.longitude ? parseFloat(data.longitude) : undefined,
+        },
+        create: {
+          userId: userId,
+          noHp: data.noHp ?? '',
+          areaKerja: data.areaKerja ?? '',
+          alamat: data.alamat,
+        }
+      })
+    }
+
+    // 3. Ambil data terbaru
+    const updatedUser = await tx.user.findUnique({
+      where: { id: userId },
+      include: { roles: { include: { role: true } }, teknisi: true }
+    })
+
+    return formatUserResponse(updatedUser)
   })
 }
 
-async function getTeknisiUsers() {
-  return prisma.user.findMany({
+/**
+ * GET USERS BY ROLE
+ */
+async function getUsersByRole(roleName) {
+  const users = await prisma.user.findMany({
     where: {
       roles: {
-        some: {
-          role: {
-            nama_role: 'teknisi'
-          }
-        }
-      }
+        some: { role: { nama_role: roleName.toUpperCase() } }
+      },
+      isActive: true // Hanya ambil yang aktif
     },
     include: {
-      roles: {
-        include: {
-          role: true
-        }
-      },
+      roles: { include: { role: true } },
+      teknisi: true
+    },
+    orderBy: { createdAt: 'desc' }
+  })
+  return users.map(formatUserResponse)
+}
+
+/**
+ * DELETE USER (Saran Model 1: Soft Delete lebih aman)
+ */
+async function deleteUser(id) {
+  return await prisma.user.update({
+    where: { id: Number(id) },
+    data: { isActive: false }
+  })
+}
+
+/**
+ * UPDATE PASSWORD ONLY
+ */
+async function updatePassword(id, hashedPassword) {
+  return await prisma.user.update({
+    where: { id: Number(id) },
+    data: { password: hashedPassword }
+  })
+}
+
+/**
+ * GET USER BY ID
+ */
+async function getUserById(id) {
+  const user = await prisma.user.findUnique({
+    where: { id: Number(id) },
+    include: {
+      roles: { include: { role: true } },
       teknisi: true
     }
   })
-}
-
-async function deleteUser(id) {
-  const idNum = Number(id)
-  return prisma.$transaction(async (tx) => {
-    await tx.userRole.deleteMany({ where: { id_user: idNum } })
-    await tx.dataTeknisi.deleteMany({ where: { id_teknisi: idNum } })
-    return tx.user.delete({ where: { id_user: idNum } })
-  })
-}
-
-async function updateTeknisiData(id_teknisi, data) {
-  const idNum = Number(id_teknisi)
-  return prisma.dataTeknisi.update({
-    where: { id_teknisi: idNum },
-    data: {
-      no_hp: data.no_hp || '',
-      area_kerja: data.area_kerja || '',
-      alamat: data.alamat || null,
-      koordinat: data.koordinat || null,
-    },
-  })
-}
-
-async function getTeknisiById(id_teknisi) {
-  return prisma.dataTeknisi.findUnique({
-    where: { id_teknisi: Number(id_teknisi) },
-  })
+  return formatUserResponse(user)
 }
 
 export default {
-  getUserByEmail,
-  getUserById,
-  assignRole,
-  assignRoles,
-  createDataTeknisi,
-  createUserWithRolesAndTeknisi,
-  getTeknisiUsers,
+  createUserWithProfile,
+  updateFullUserProfile,
+  getUsersByRole,
   deleteUser,
-  updateTeknisiData,
-  getTeknisiById,
+  updatePassword,
+  getUserById,
+  getUserByEmail: (email) => prisma.user.findUnique({ where: { email: email.toLowerCase() } })
 }

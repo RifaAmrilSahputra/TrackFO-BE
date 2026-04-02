@@ -7,42 +7,113 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
 model User {
-  id_user   Int       @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   nama      String
-  email     String    @unique
+  email     String   @unique
   password  String
-  createdAt DateTime  @default(now())
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
 
-  // relations
   roles     UserRole[]
   teknisi   DataTeknisi?
 }
 
 model Role {
-  id_role Int      @id @default(autoincrement())
+  id        Int    @id @default(autoincrement())
   nama_role String @unique
 
   users UserRole[]
 }
 
 model UserRole {
-  id_user Int
-  id_role Int
+  userId Int
+  roleId Int
 
-  user User @relation(fields: [id_user], references: [id_user])
-  role Role @relation(fields: [id_role], references: [id_role])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
-  @@id([id_user, id_role])
+  @@id([userId, roleId])
 }
 
 model DataTeknisi {
-  id_teknisi Int    @id
-  no_hp      String
-  area_kerja String
+  id         Int     @id @default(autoincrement())
+  userId     Int     @unique
+  noHp       String
+  areaKerja  String
   alamat     String?
-  koordinat  String? // store as text like 'lat,lng'
 
-  user User @relation(fields: [id_teknisi], references: [id_user])
+  latitude   Float?
+  longitude  Float?
+  lastSeen   DateTime?   // untuk cek aktif/tidak
+  status     String  @default("available") // available, busy, off
+
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignments Assignment[]
+  trackings   Tracking[]
+  laporan     Laporan[]
+}
+
+model Gangguan {
+  id          Int      @id @default(autoincrement())
+  judul       String
+  deskripsi   String
+  latitude    Float
+  longitude   Float
+  alamat      String
+
+  status      String   @default("open") // open, assigned, on_progress, done
+  priority    String?  // low, medium, high
+  deadline    DateTime?
+
+  createdAt   DateTime @default(now())
+
+  assignments Assignment[]
+  laporan     Laporan[]
+}
+
+model Assignment {
+  id          Int      @id @default(autoincrement())
+  gangguanId  Int
+  teknisiId   Int
+
+  isLeader    Boolean  @default(false) // 🔥 penting
+  status      String   @default("assigned") // assigned, on_the_way, working, done
+
+  assignedAt  DateTime @default(now())
+  assignedBy  Int?     // admin yang assign
+  method      String?  // manual / auto
+
+  gangguan Gangguan @relation(fields: [gangguanId], references: [id], onDelete: Cascade)
+  teknisi  DataTeknisi @relation(fields: [teknisiId], references: [id], onDelete: Cascade)
+
+  @@index([gangguanId])
+  @@index([teknisiId])
+}
+
+model Tracking {
+  id          Int      @id @default(autoincrement())
+  teknisiId   Int
+  latitude    Float
+  longitude   Float
+  recordedAt  DateTime @default(now())
+
+  teknisi DataTeknisi @relation(fields: [teknisiId], references: [id], onDelete: Cascade)
+
+  @@index([teknisiId])
+}
+
+model Laporan {
+  id           Int      @id @default(autoincrement())
+  gangguanId   Int
+  teknisiId    Int // leader yang submit
+
+  catatan      String
+  foto         String?
+  waktuSelesai DateTime @default(now())
+
+  gangguan Gangguan @relation(fields: [gangguanId], references: [id], onDelete: Cascade)
+  teknisi  DataTeknisi @relation(fields: [teknisiId], references: [id], onDelete: Cascade)
+
+  @@index([gangguanId])
 }
