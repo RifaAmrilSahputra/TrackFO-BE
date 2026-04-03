@@ -122,11 +122,26 @@ async function getGangguanById(id) {
 
 /**
  * UPDATE GANGGUAN (Admin Only)
+ * BUSINESS RULE: Tidak boleh update gangguan yang sudah done
  */
 async function updateGangguan(id, data) {
   const gangguanId = Number(id)
   if (isNaN(gangguanId)) {
     throw { statusCode: 400, message: 'ID gangguan tidak valid' }
+  }
+
+  // Cek gangguan exists dulu
+  const existingGangguan = await prisma.gangguan.findUnique({
+    where: { id: gangguanId }
+  })
+
+  if (!existingGangguan) {
+    throw { statusCode: 404, message: 'Gangguan tidak ditemukan' }
+  }
+
+  // BUSINESS RULE: Prevent updates on done gangguan
+  if (existingGangguan.status === 'done') {
+    throw { statusCode: 400, message: 'Tidak bisa update gangguan yang sudah selesai. Gangguan sudah ditutup.' }
   }
 
   const updateData = {}

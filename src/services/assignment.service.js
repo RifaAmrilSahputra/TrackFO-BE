@@ -1,6 +1,28 @@
 import prisma from '../../config/prisma.js'
 
 /**
+ * STATUS FLOW VALIDATOR
+ * Enforce: assigned → on_the_way → working → done
+ * Tidak boleh lompat status sembarangan
+ */
+const STATUS_FLOW = {
+  assigned: ['on_the_way'],
+  on_the_way: ['working'],
+  working: ['done'],
+  done: [] // final state
+}
+
+function validateStatusTransition(currentStatus, newStatus) {
+  const allowedNextStatuses = STATUS_FLOW[currentStatus]
+  if (!allowedNextStatuses || !allowedNextStatuses.includes(newStatus)) {
+    throw {
+      statusCode: 400,
+      message: `Tidak boleh mengubah status dari ${currentStatus} ke ${newStatus}. Status berikutnya yang valid: ${allowedNextStatuses.join(', ')}`
+    }
+  }
+}
+
+/**
  * Helper: Hitung jarak antara dua koordinat (Haversine formula)
  */
 function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -118,6 +140,7 @@ async function assignTeknisiToGangguan(gangguanId, assignmentData, assignedBy) {
         throw { statusCode: 400, message: 'teknisiIds wajib diisi untuk assign manual' }
       }
 
+      // BUSINESS RULE: Tidak bisa assign teknisi yang busy
       // Validasi teknisi exists dan available
       const teknisiRecords = await tx.dataTeknisi.findMany({
         where: {
@@ -129,7 +152,7 @@ async function assignTeknisiToGangguan(gangguanId, assignmentData, assignedBy) {
       })
 
       if (teknisiRecords.length !== teknisiIds.length) {
-        throw { statusCode: 400, message: 'Beberapa teknisi tidak valid atau tidak tersedia' }
+        throw { statusCode: 400, message: 'Beberapa teknisi tidak valid, tidak tersedia, atau sedang busy. Hanya teknisi dengan status available yang bisa di-assign.' }
       }
 
       selectedTeknisi = teknisiRecords
@@ -211,6 +234,7 @@ async function getAssignmentsByGangguanId(gangguanId) {
 
 /**
  * UPDATE ASSIGNMENT STATUS
+ * BUSINESS RULE: Status flow harus diikuti: assigned → on_the_way → working → done
  */
 async function updateAssignmentStatus(assignmentId, status, teknisiId) {
   const validStatuses = ['assigned', 'on_the_way', 'working', 'done']
@@ -231,6 +255,9 @@ async function updateAssignmentStatus(assignmentId, status, teknisiId) {
   if (assignment.teknisi.userId !== teknisiId) {
     throw { statusCode: 403, message: 'Anda tidak memiliki akses ke assignment ini' }
   }
+
+  // BUSINESS RULE: Enforce status flow transition
+  validateStatusTransition(assignment.status, status)
 
   return await prisma.$transaction(async (tx) => {
     // Update assignment status
