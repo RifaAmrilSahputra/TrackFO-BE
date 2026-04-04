@@ -1,10 +1,8 @@
 import prisma from '../../config/prisma.js'
 
-/**
- * STATUS FLOW VALIDATOR
- * Enforce: assigned → on_the_way → working → done
- * Tidak boleh lompat status sembarangan
- */
+// STATUS FLOW VALIDATION
+// Enforce status flow: assigned → on_the_way → working → done
+// Teknisi hanya bisa update status sesuai flow, tidak boleh skip atau mundur status
 const STATUS_FLOW = {
   assigned: ['on_the_way'],
   on_the_way: ['working'],
@@ -22,9 +20,7 @@ function validateStatusTransition(currentStatus, newStatus) {
   }
 }
 
-/**
- * Helper: Hitung jarak antara dua koordinat (Haversine formula)
- */
+// HITUNG JARAK DENGAN HAVERSINE FORMULA
 function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371 // Radius bumi dalam km
   const dLat = (lat2 - lat1) * Math.PI / 180
@@ -37,9 +33,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return R * c // Jarak dalam km
 }
 
-/**
- * Helper: Format Response Assignment
- */
+// Helper: Format Response Assignment
 const formatAssignmentResponse = (assignment) => {
   if (!assignment) return null
   return {
@@ -63,9 +57,7 @@ const formatAssignmentResponse = (assignment) => {
   }
 }
 
-/**
- * AUTO ASSIGN: Cari teknisi terbaik berdasarkan jarak
- */
+// FIND BEST TEKNISI BERDASARKAN JARAK TERDEKAT
 async function findBestTeknisi(gangguanLat, gangguanLon, excludeIds = []) {
   // Ambil semua teknisi yang available
   const availableTeknisi = await prisma.dataTeknisi.findMany({
@@ -102,9 +94,7 @@ async function findBestTeknisi(gangguanLat, gangguanLon, excludeIds = []) {
   return teknisiWithDistance[0] // Yang terdekat
 }
 
-/**
- * ASSIGN TEKNISI KE GANGGUAN (Manual atau Auto)
- */
+// ASSIGN TEKNISI KE GANGGUAN (Manual atau Auto)
 async function assignTeknisiToGangguan(gangguanId, assignmentData, assignedBy) {
   const { teknisiIds, method = 'manual' } = assignmentData
 
@@ -215,9 +205,7 @@ async function assignTeknisiToGangguan(gangguanId, assignmentData, assignedBy) {
   })
 }
 
-/**
- * GET ASSIGNMENTS BY GANGGUAN ID
- */
+// GET ASSIGNMENTS BY GANGGUAN ID
 async function getAssignmentsByGangguanId(gangguanId) {
   const assignments = await prisma.assignment.findMany({
     where: { gangguanId: Number(gangguanId) },
@@ -232,10 +220,7 @@ async function getAssignmentsByGangguanId(gangguanId) {
   return assignments.map(formatAssignmentResponse)
 }
 
-/**
- * UPDATE ASSIGNMENT STATUS
- * BUSINESS RULE: Status flow harus diikuti: assigned → on_the_way → working → done
- */
+// UPDATE STATUS ASSIGNMENT
 async function updateAssignmentStatus(assignmentId, status, teknisiId) {
   const validStatuses = ['assigned', 'on_the_way', 'working', 'done']
   if (!validStatuses.includes(status)) {

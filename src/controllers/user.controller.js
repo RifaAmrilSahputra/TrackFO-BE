@@ -1,12 +1,10 @@
 import userService from '../services/user.service.js'
-import crypto from 'crypto' // Lebih aman daripada Math.random
+import crypto from 'crypto'
 
-// Helper sederhana untuk validasi email (Saran Model 2)
+// Helper validasi email
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 
-/**
- * CREATE USER (Admin Only)
- */
+// CREATE USER (Admin)
 async function createUser(req, res, next) {
   try {
     const { name, email, password, roles, ...teknisiData } = req.body
@@ -22,7 +20,7 @@ async function createUser(req, res, next) {
       return res.status(400).json({ success: false, message: 'Minimal pilih satu role' })
     }
 
-    // 2. Password Management (Saran Model 1 & 2)
+    // 2. Password Management
     let finalPassword = password
     let tempPassword = null
     if (!finalPassword) {
@@ -30,7 +28,7 @@ async function createUser(req, res, next) {
       finalPassword = tempPassword
     }
 
-    // 3. Delegasi ke Service (Controller tidak boleh akses DB langsung!)
+    // 3. Delegasi ke Service
     const newUser = await userService.createUserWithProfile({
       nama: name.trim(),
       email: email.toLowerCase().trim(),
@@ -50,15 +48,13 @@ async function createUser(req, res, next) {
   }
 }
 
-/**
- * DELETE USER (Admin Only)
- */
+// DELETE USER (Admin)
 async function deleteUser(req, res, next) {
   try {
     const { id } = req.params
     const authUserId = req.user.id
 
-    // Prevent Self-Delete (Saran Model 2)
+    // Prevent Self-Delete
     if (Number(id) === authUserId) {
       return res.status(400).json({ success: false, message: 'Anda tidak bisa menghapus akun sendiri' })
     }
@@ -71,9 +67,7 @@ async function deleteUser(req, res, next) {
   }
 }
 
-/**
- * GET ALL TEKNISI (Admin Only)
- */
+// GET ALL TEKNISI (Admin)
 async function getAllTeknisi(req, res, next) {
   try {
     const teknisiList = await userService.getUsersByRole('TEKNISI')
@@ -88,9 +82,7 @@ async function getAllTeknisi(req, res, next) {
   }
 }
 
-/**
- * UPDATE TEKNISI (Admin atau Teknisi itu sendiri)
- */
+// UPDATE TEKNISI
 async function updateTeknisi(req, res, next) {
   try {
     const { id } = req.params
@@ -105,7 +97,7 @@ async function updateTeknisi(req, res, next) {
       return res.status(403).json({ success: false, message: 'Akses ditolak' })
     }
 
-    // Jika bukan admin, teknisi dilarang ubah nama/email/role sendiri lewat endpoint ini
+    // Jika bukan admin, teknisi dilarang ubah nama/email/role sendiri
     if (!isAdmin) {
       delete updateData.nama
       delete updateData.email
@@ -124,9 +116,7 @@ async function updateTeknisi(req, res, next) {
   }
 }
 
-/**
- * GET PROFILE (Untuk Teknisi melihat datanya sendiri)
- */
+// GET PROFILE (Teknisi)
 async function getMyProfile(req, res, next) {
   try {
     const profile = await userService.getUserById(req.user.id)

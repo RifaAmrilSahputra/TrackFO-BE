@@ -1,10 +1,7 @@
 import prisma from '../../config/prisma.js'
 import bcrypt from 'bcrypt'
 
-/**
- * Helper: Format Response User
- * Menstandarisasi output agar Controller selalu menerima bentuk data yang sama
- */
+// Helper: Format Response User
 const formatUserResponse = (user) => {
   if (!user) return null
   return {
@@ -24,18 +21,16 @@ const formatUserResponse = (user) => {
   }
 }
 
-/**
- * CREATE USER & PROFILE (Atomic Transaction)
- */
+// CREATE USER + PROFILE TEKNISI (Transaction)
 async function createUserWithProfile(data) {
   const { nama, email, password, roles, noHp, areaKerja, alamat, latitude, longitude } = data
 
   return await prisma.$transaction(async (tx) => {
-    // 1. Cek Email (Model 1: Gunakan toLowerCase)
+    // 1. Cek Email (toLowerCase)
     const existing = await tx.user.findUnique({ where: { email: email.toLowerCase() } })
     if (existing) throw { statusCode: 409, message: 'Email sudah terdaftar' }
 
-    // 2. Ambil semua Role dalam 1 Query (Optimasi Model 1 & 2)
+    // 2. Ambil semua Role dalam 1 Query
     const roleRecords = await tx.role.findMany({
       where: { nama_role: { in: roles.map(r => r.toUpperCase()) } }
     })
@@ -79,9 +74,7 @@ async function createUserWithProfile(data) {
   })
 }
 
-/**
- * UPDATE FULL PROFILE (Transaction)
- */
+// UPDATE USER + PROFILE TEKNISI (Transaction)
 async function updateFullUserProfile(id, data) {
   const userId = Number(id)
 
@@ -128,9 +121,7 @@ async function updateFullUserProfile(id, data) {
   })
 }
 
-/**
- * GET USERS BY ROLE
- */
+// GET USERS BY ROLE (Admin Only)
 async function getUsersByRole(roleName) {
   const users = await prisma.user.findMany({
     where: {
@@ -148,9 +139,7 @@ async function getUsersByRole(roleName) {
   return users.map(formatUserResponse)
 }
 
-/**
- * DELETE USER (Saran Model 1: Soft Delete lebih aman)
- */
+// SOFT DELETE USER (Admin Only)
 async function deleteUser(id) {
   return await prisma.user.update({
     where: { id: Number(id) },
@@ -158,9 +147,7 @@ async function deleteUser(id) {
   })
 }
 
-/**
- * UPDATE PASSWORD ONLY
- */
+// UPDATE PASSWORD
 async function updatePassword(id, hashedPassword) {
   return await prisma.user.update({
     where: { id: Number(id) },
@@ -168,9 +155,7 @@ async function updatePassword(id, hashedPassword) {
   })
 }
 
-/**
- * GET USER BY ID
- */
+// GET USER BY ID
 async function getUserById(id) {
   const user = await prisma.user.findUnique({
     where: { id: Number(id) },

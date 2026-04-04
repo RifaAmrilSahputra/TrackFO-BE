@@ -1,8 +1,6 @@
 import assignmentService from '../services/assignment.service.js'
 
-/**
- * ASSIGN TEKNISI KE GANGGUAN (Manual atau Auto)
- */
+// ASSIGN TEKNISI TO GANGGUAN (Admin + Manual atau Auto)
 async function assignTeknisiToGangguan(req, res, next) {
   try {
     const { id } = req.params
@@ -24,9 +22,7 @@ async function assignTeknisiToGangguan(req, res, next) {
   }
 }
 
-/**
- * GET ASSIGNMENTS BY GANGGUAN ID
- */
+// GET ASSIGNMENTS BY GANGGUAN ID (Admin)
 async function getAssignmentsByGangguanId(req, res, next) {
   try {
     const { id } = req.params
@@ -42,9 +38,7 @@ async function getAssignmentsByGangguanId(req, res, next) {
   }
 }
 
-/**
- * UPDATE ASSIGNMENT STATUS (Teknisi Only)
- */
+// UPDATE ASSIGNMENT STATUS (Teknisi)
 async function updateAssignmentStatus(req, res, next) {
   try {
     const { assignmentId } = req.params

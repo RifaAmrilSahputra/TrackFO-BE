@@ -1,8 +1,6 @@
 import gangguanService from '../services/gangguan.service.js'
 
-/**
- * CREATE GANGGUAN (Admin Only)
- */
+// CREATE GANGGUAN (Admin)
 async function createGangguan(req, res, next) {
   try {
     const gangguan = await gangguanService.createGangguan(req.body, req.user.id)
@@ -17,9 +15,7 @@ async function createGangguan(req, res, next) {
   }
 }
 
-/**
- * GET ALL GANGGUAN (Admin Only)
- */
+// GET ALL GANGGUAN (Admin)
 async function getAllGangguan(req, res, next) {
   try {
     const gangguan = await gangguanService.getAllGangguan()
@@ -33,9 +29,7 @@ async function getAllGangguan(req, res, next) {
   }
 }
 
-/**
- * GET GANGGUAN BY ID (Admin Only)
- */
+// GET GANGGUAN BY ID (Admin)
 async function getGangguanById(req, res, next) {
   try {
     const gangguan = await gangguanService.getGangguanById(req.params.id)
@@ -49,9 +43,7 @@ async function getGangguanById(req, res, next) {
   }
 }
 
-/**
- * UPDATE GANGGUAN (Admin Only)
- */
+// UPDATE GANGGUAN (Admin)
 async function updateGangguan(req, res, next) {
   try {
     const gangguan = await gangguanService.updateGangguan(req.params.id, req.body)
@@ -66,9 +58,7 @@ async function updateGangguan(req, res, next) {
   }
 }
 
-/**
- * GET MY TASKS (Teknisi Only)
- */
+// GET MY TASKS (Teknisi)
 async function getMyTasks(req, res, next) {
   try {
     const tasks = await gangguanService.getMyTasks(req.user.id)

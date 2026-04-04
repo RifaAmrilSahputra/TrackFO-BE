@@ -1,10 +1,7 @@
 import { verifyToken } from '../utils/jwt.js';
 import prisma from '../../config/prisma.js';
 
-/**
- * AUTH GUARD: Memastikan user memiliki token yang valid
- * dan datanya masih aktif di database.
- */
+// AUTH GUARD: Memastikan user memiliki token yang valid dan datanya masih aktif di database.
 const authGuard = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
@@ -76,10 +73,8 @@ const authGuard = async (req, res, next) => {
   }
 };
 
-/**
- * AUTHORIZE ROLE: Middleware untuk membatasi akses berdasarkan role.
- * Digunakan SETELAH authGuard.
- */
+// AUTHORIZE ROLE: Middleware untuk membatasi akses berdasarkan role.
+// Digunakan SETELAH authGuard.
 export const authorizeRole = (rolesAllowed = []) => {
   return (req, res, next) => {
     // Pastikan authGuard sudah dijalankan sebelumnya
@@ -104,10 +99,7 @@ export const authorizeRole = (rolesAllowed = []) => {
   };
 };
 
-/**
- * GRANT ACCESS HELPER: Menggabungkan Guard & Role dalam satu baris.
- * Contoh penggunaan: router.get('/admin', grantAccess(['ADMIN']), controller)
- */
+//  GRANT ACCESS HELPER: Menggabungkan Guard & Role dalam satu baris.
 export const grantAccess = (roles = []) => {
   return [authGuard, authorizeRole(roles)];
 };

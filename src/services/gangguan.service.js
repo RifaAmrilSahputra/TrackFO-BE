@@ -1,8 +1,6 @@
 import prisma from '../../config/prisma.js'
 
-/**
- * Helper: Format Response Gangguan
- */
+// HELPER: Format Response Gangguan
 const formatGangguanResponse = (gangguan) => {
   if (!gangguan) return null
   return {
@@ -34,9 +32,7 @@ const formatGangguanResponse = (gangguan) => {
   }
 }
 
-/**
- * CREATE GANGGUAN (Admin Only)
- */
+// CREATE GANGGUAN (Admin)
 async function createGangguan(data, createdBy) {
   const { judul, deskripsi, latitude, longitude, alamat, priority, deadline } = data
 
@@ -67,9 +63,7 @@ async function createGangguan(data, createdBy) {
   return formatGangguanResponse(gangguan)
 }
 
-/**
- * GET ALL GANGGUAN (Admin Only)
- */
+// GET ALL GANGGUAN (Admin)
 async function getAllGangguan() {
   const gangguan = await prisma.gangguan.findMany({
     include: {
@@ -89,9 +83,7 @@ async function getAllGangguan() {
   return gangguan.map(formatGangguanResponse)
 }
 
-/**
- * GET GANGGUAN BY ID
- */
+// GET GANGGUAN BY ID
 async function getGangguanById(id) {
   const gangguanId = Number(id)
   if (isNaN(gangguanId)) {
@@ -120,10 +112,8 @@ async function getGangguanById(id) {
   return formatGangguanResponse(gangguan)
 }
 
-/**
- * UPDATE GANGGUAN (Admin Only)
- * BUSINESS RULE: Tidak boleh update gangguan yang sudah done
- */
+// UPDATE GANGGUAN (Admin)
+// BUSINESS RULE: Tidak boleh update gangguan yang sudah done
 async function updateGangguan(id, data) {
   const gangguanId = Number(id)
   if (isNaN(gangguanId)) {
@@ -192,9 +182,7 @@ async function updateGangguan(id, data) {
   return formatGangguanResponse(gangguan)
 }
 
-/**
- * GET MY TASKS (Teknisi Only)
- */
+// GET MY TASKS (Teknisi)
 async function getMyTasks(teknisiId) {
   const teknisi = await prisma.dataTeknisi.findUnique({
     where: { userId: teknisiId },

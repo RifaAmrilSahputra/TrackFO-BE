@@ -77,7 +77,7 @@ model Assignment {
   gangguanId  Int
   teknisiId   Int
 
-  isLeader    Boolean  @default(false) // 🔥 penting
+  isLeader    Boolean  @default(false)
   status      String   @default("assigned") // assigned, on_the_way, working, done
 
   assignedAt  DateTime @default(now())

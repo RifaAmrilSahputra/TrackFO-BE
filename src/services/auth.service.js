@@ -1,11 +1,9 @@
-import prisma from '../../config/prisma.js' // Gunakan singleton prisma kita
+import prisma from '../../config/prisma.js'
 import bcrypt from 'bcrypt'
 import { signToken } from '../utils/jwt.js'
 import userService from './user.service.js'
 
-/**
- * LOGIN SERVICE
- */
+// AUTH SERVICE: Login, Change Password
 async function login(email, password) {
   // 1. Cari user & include roles untuk pengecekan awal
   const user = await prisma.user.findUnique({
@@ -22,7 +20,7 @@ async function login(email, password) {
     throw { statusCode: 401, message: 'Email atau password salah' }
   }
 
-  // 3. Validasi Status Aktif (Saran Model 1)
+  // 3. Validasi Status Aktif
   if (!user.isActive) {
     throw { statusCode: 403, message: 'Akun Anda telah dinonaktifkan. Silakan hubungi admin.' }
   }
@@ -36,7 +34,7 @@ async function login(email, password) {
   // 5. Mapping Roles untuk Response (bukan untuk JWT)
   const roles = user.roles.map(r => r.role.nama_role.toUpperCase())
 
-  // 6. Generate Token (Saran Model 2: Payload Minimalis)
+  // 6. Generate Token (Payload Minimalis)
   const token = signToken({
     id: user.id,
     email: user.email,
@@ -53,9 +51,7 @@ async function login(email, password) {
   }
 }
 
-/**
- * RESET PASSWORD (ADMIN ONLY - Tanpa Password Lama)
- */
+// RESET PASSWORD (ADMIN - Tanpa Password Lama)
 async function changeUserPassword(userId, newPassword) {
   const user = await prisma.user.findUnique({
     where: { id: Number(userId) },
@@ -71,9 +67,7 @@ async function changeUserPassword(userId, newPassword) {
   return await userService.updatePassword(user.id, hashedPassword)
 }
 
-/**
- * GANTI PASSWORD SENDIRI (Wajib Password Lama)
- */
+// GANTI PASSWORD SENDIRI (Wajib Password Lama)
 async function changeMyPassword(userId, oldPassword, newPassword) {
   const user = await prisma.user.findUnique({
     where: { id: Number(userId) },
@@ -89,7 +83,7 @@ async function changeMyPassword(userId, oldPassword, newPassword) {
     throw { statusCode: 401, message: 'Password lama yang Anda masukkan salah' }
   }
 
-  // 2. Cegah Password Baru Sama Dengan Password Lama (Saran Model 1)
+  // 2. Cegah Password Baru Sama Dengan Password Lama
   if (oldPassword === newPassword) {
     throw { statusCode: 400, message: 'Password baru tidak boleh sama dengan password lama' }
   }

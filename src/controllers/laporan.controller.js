@@ -1,8 +1,6 @@
 import laporanService from '../services/laporan.service.js'
 
-/**
- * CREATE LAPORAN (Teknisi Leader Only)
- */
+// CREATE LAPORAN (Teknisi Leader)
 async function createLaporan(req, res, next) {
   try {
     const laporan = await laporanService.createLaporan(req.user.id, req.body)
@@ -17,9 +15,7 @@ async function createLaporan(req, res, next) {
   }
 }
 
-/**
- * GET ALL LAPORAN (Admin Only)
- */
+// GET ALL LAPORAN (Admin)
 async function getAllLaporan(req, res, next) {
   try {
     const laporan = await laporanService.getAllLaporan()
@@ -33,9 +29,7 @@ async function getAllLaporan(req, res, next) {
   }
 }
 
-/**
- * GET LAPORAN BY ID (Admin Only)
- */
+// GET LAPORAN BY ID (Admin)
 async function getLaporanById(req, res, next) {
   try {
     const laporan = await laporanService.getLaporanById(req.params.id)
@@ -49,9 +43,7 @@ async function getLaporanById(req, res, next) {
   }
 }
 
-/**
- * GET MY LAPORAN (Teknisi Only)
- */
+// GET MY LAPORAN (Teknisi)
 async function getMyLaporan(req, res, next) {
   try {
     const laporan = await laporanService.getMyLaporan(req.user.id)

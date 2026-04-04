@@ -1,4 +1,5 @@
 import { Router } from 'express'
+
 import {
   createGangguan,
   getAllGangguan,
@@ -6,29 +7,23 @@ import {
   updateGangguan,
   getMyTasks
 } from '../controllers/gangguan.controller.js'
+
 import assignmentRoute from './assignment.route.js'
 import authGuard from '../middlewares/auth.middleware.js'
 import authorizeRole from '../middlewares/role.middleware.js'
 
 const router = Router()
 
-/**
- * STRATEGI ROUTING GANGGUAN:
- * 1. Admin endpoints: CRUD gangguan
- * 2. Teknisi endpoints: melihat tugas mereka
- * 3. Nested routes: assignment sebagai sub-resource
- */
-
-// --- ADMIN ENDPOINTS ---
+// Admin
 router.post('/', authGuard, authorizeRole(['ADMIN']), createGangguan)
 router.get('/', authGuard, authorizeRole(['ADMIN']), getAllGangguan)
 router.get('/:id', authGuard, authorizeRole(['ADMIN']), getGangguanById)
 router.patch('/:id', authGuard, authorizeRole(['ADMIN']), updateGangguan)
 
-// --- NESTED ROUTES: ASSIGNMENT ---
-router.use('/', assignmentRoute)
+// Teknisi
+router.get('/my/tasks', authGuard, authorizeRole(['TEKNISI']), getMyTasks)
 
-// --- TEKNISI ENDPOINTS ---
-router.get('/my-task/tasks', authGuard, authorizeRole(['TEKNISI']), getMyTasks)
+// Nested: assignment
+router.use('/', assignmentRoute)
 
 export default router

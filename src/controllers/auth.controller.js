@@ -1,9 +1,7 @@
 import authService from '../services/auth.service.js'
 import userService from '../services/user.service.js'
 
-/**
- * LOGIN
- */
+// LOGIN
 async function login(req, res, next) {
   try {
     const { email, password } = req.body
@@ -28,9 +26,7 @@ async function login(req, res, next) {
   }
 }
 
-/**
- * LOGOUT
- */
+// LOGOUT (Hanya untuk memberi tahu client agar hapus token, karena JWT stateless)
 async function logout(req, res, next) {
   try {
     res.json({
@@ -42,9 +38,7 @@ async function logout(req, res, next) {
   }
 }
 
-/**
- * GANTI PASSWORD SENDIRI
- */
+// CHANGE MY PASSWORD (Teknisi atau Admin untuk diri sendiri)
 async function changeMyPassword(req, res, next) {
   try {
     console.log('changeMyPassword - req.user:', req.user)
@@ -76,9 +70,7 @@ async function changeMyPassword(req, res, next) {
   }
 }
 
-/**
- * ADMIN MENGUBAH PASSWORD TEKNISI
- */
+// CHANGE TEKNISI PASSWORD (Admin untuk teknisi lain)
 async function changeTeknisiPassword(req, res, next) {
   try {
     console.log('changeTeknisiPassword - req.user:', req.user)
