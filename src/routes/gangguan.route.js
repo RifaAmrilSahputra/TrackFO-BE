@@ -17,11 +17,13 @@ const router = Router()
 // Admin
 router.post('/', authGuard, authorizeRole(['ADMIN']), createGangguan)
 router.get('/', authGuard, authorizeRole(['ADMIN']), getAllGangguan)
-router.get('/:id', authGuard, authorizeRole(['ADMIN']), getGangguanById)
 router.patch('/:id', authGuard, authorizeRole(['ADMIN']), updateGangguan)
 
 // Teknisi
 router.get('/my/tasks', authGuard, authorizeRole(['TEKNISI']), getMyTasks)
+
+// Admin
+router.get('/:id', authGuard, authorizeRole(['ADMIN']), getGangguanById)
 
 // Nested: assignment
 router.use('/', assignmentRoute)

@@ -17,7 +17,7 @@ router.get('/:id/assignments', authGuard, authorizeRole(['ADMIN']), getAssignmen
 
 // Teknisi
 router.patch(
-  '/:id/assignment/:assignmentId/status',
+  '/assignment/:assignmentId/status',
   authGuard,
   authorizeRole(['TEKNISI']),
   updateAssignmentStatus

@@ -5,6 +5,7 @@ import {
   createUser,
   getAllTeknisi,
   updateTeknisi,
+  updateMyProfile,
   getMyProfile
 } from '../controllers/user.controller.js'
 
@@ -15,7 +16,7 @@ const router = Router()
 
 // Self
 router.get('/me', authGuard, authorizeRole(['TEKNISI']), getMyProfile)
-router.patch('/me', authGuard, authorizeRole(['TEKNISI']), updateTeknisi)
+router.patch('/me', authGuard, authorizeRole(['TEKNISI']), updateMyProfile)
 
 // Admin
 router.get('/teknisi', authGuard, authorizeRole(['ADMIN']), getAllTeknisi)

@@ -116,6 +116,30 @@ async function updateTeknisi(req, res, next) {
   }
 }
 
+// UPDATE MY PROFILE (Teknisi)
+async function updateMyProfile(req, res, next) {
+  try {
+    const authUser = req.user
+    const updateData = req.body
+
+    // Teknisi hanya bisa ubah password dan mungkin field lain yang diizinkan
+    // Tidak bisa ubah nama, email, roles
+    delete updateData.nama
+    delete updateData.email
+    delete updateData.roles
+
+    const updated = await userService.updateFullUserProfile(authUser.id, updateData)
+
+    res.json({
+      success: true,
+      message: 'Profil berhasil diperbarui',
+      data: updated
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
 // GET PROFILE (Teknisi)
 async function getMyProfile(req, res, next) {
   try {
@@ -131,5 +155,6 @@ export {
   deleteUser, 
   getAllTeknisi, 
   updateTeknisi, 
+  updateMyProfile,
   getMyProfile 
 }

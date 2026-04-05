@@ -215,6 +215,57 @@ describe('User API', () => {
     })
   })
 
+  describe('PATCH /api/users/me', () => {
+    it('should update own profile with teknisi token', async () => {
+      const updateData = {
+        noHp: '081234567890',
+        areaKerja: 'Updated Area',
+        alamat: 'Updated Address'
+      }
+
+      const res = await request(app)
+        .patch('/api/users/me')
+        .set('Authorization', `Bearer ${teknisiToken}`)
+        .send(updateData)
+
+      expect(res.status).toBe(200)
+      expect(res.body.success).toBe(true)
+      expect(res.body.message).toBe('Profil berhasil diperbarui')
+      expect(res.body.data.teknisi.noHp).toBe('081234567890')
+      expect(res.body.data.teknisi.areaKerja).toBe('Updated Area')
+    })
+
+    it('should prevent teknisi from updating restricted fields', async () => {
+      const updateData = {
+        nama: 'Hacked Name',
+        email: 'hacked@test.com',
+        roles: ['ADMIN'],
+        noHp: '081234567891'
+      }
+
+      const res = await request(app)
+        .patch('/api/users/me')
+        .set('Authorization', `Bearer ${teknisiToken}`)
+        .send(updateData)
+
+      expect(res.status).toBe(200)
+      // Should not update restricted fields
+      expect(res.body.data.nama).not.toBe('Hacked Name')
+      expect(res.body.data.email).not.toBe('hacked@test.com')
+      expect(res.body.data.roles).not.toContain('ADMIN')
+      // But should update allowed field
+      expect(res.body.data.teknisi.noHp).toBe('081234567891')
+    })
+
+    it('should reject without authentication', async () => {
+      const res = await request(app)
+        .patch('/api/users/me')
+        .send({ noHp: '081234567892' })
+
+      expect(res.status).toBe(401)
+    })
+  })
+
   describe('PATCH /api/users/:id', () => {
     it('should update teknisi data with admin token', async () => {
       // Get teknisi user ID
