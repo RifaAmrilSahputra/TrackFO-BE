@@ -8,8 +8,19 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "test": "NODE_OPTIONS=--experimental-vm-modules npx jest",
+    "test:unit": "NODE_OPTIONS=--experimental-vm-modules npx jest test/unit --runInBand",
+    "test:integration": "NODE_OPTIONS=--experimental-vm-modules npx jest test/integration --runInBand",
+    "test:e2e": "NODE_OPTIONS=--experimental-vm-modules npx jest test/e2e --runInBand",
+    "test:auth": "NODE_OPTIONS=--experimental-vm-modules npx jest test/integration/auth.test.js --runInBand",
+    "test:user": "NODE_OPTIONS=--experimental-vm-modules npx jest test/integration/user.test.js --runInBand",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules npx jest --watchAll",
-    "test:coverage": "NODE_OPTIONS=--experimental-vm-modules npx jest --coverage"
+    "test:watch:unit": "NODE_OPTIONS=--experimental-vm-modules npx jest test/unit --watchAll",
+    "test:watch:integration": "NODE_OPTIONS=--experimental-vm-modules npx jest test/integration --watchAll",
+    "test:watch:e2e": "NODE_OPTIONS=--experimental-vm-modules npx jest test/e2e --watchAll",
+    "test:coverage": "NODE_OPTIONS=--experimental-vm-modules npx jest --coverage",
+    "test:coverage:unit": "NODE_OPTIONS=--experimental-vm-modules npx jest test/unit --coverage --runInBand",
+    "test:coverage:integration": "NODE_OPTIONS=--experimental-vm-modules npx jest test/integration --coverage --runInBand",
+    "test:coverage:e2e": "NODE_OPTIONS=--experimental-vm-modules npx jest test/e2e --coverage --runInBand"
   },
   "prisma": {
     "seed": "node prisma/seed/seed.js"
@@ -40,6 +51,10 @@
   },
   "jest": {
     "testEnvironment": "node",
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/test/helpers/"
+    ],
     "transformIgnorePatterns": [
       "node_modules/(?!(supertest|@prisma)/)"
     ],

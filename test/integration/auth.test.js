@@ -1,83 +1,20 @@
 import request from 'supertest'
-import { PrismaClient } from '@prisma/client'
-import bcrypt from 'bcrypt'
-import app from '../src/app.js'
-import { loginLimiter } from '../src/routes/auth.route.js'
-import { TEST_ADMIN_EMAIL, TEST_TEKNISI_EMAIL, TEST_PASSWORD, TEST_ADMIN_NAME, TEST_TEKNISI_NAME } from './test-constants.js'
-
-const prisma = new PrismaClient()
-
-// Add unique suffix to avoid conflicts between test runs
-const uniqueId = Date.now()
-const ADMIN_EMAIL = `${TEST_ADMIN_EMAIL.split('@')[0]}_${uniqueId}@${TEST_ADMIN_EMAIL.split('@')[1]}`
-const TEKNISI_EMAIL = `${TEST_TEKNISI_EMAIL.split('@')[0]}_${uniqueId}@${TEST_TEKNISI_EMAIL.split('@')[1]}`
-
-// Helper to seed test data
-async function seedTestData() {
-  await prisma.$transaction(async (tx) => {
-    // Clear in correct order with CASCADE to ensure complete cleanup
-    await tx.dataTeknisi.deleteMany({ where: {} })
-    await tx.userRole.deleteMany({ where: {} })
-    await tx.user.deleteMany({ where: {} })
-    await tx.role.deleteMany({ where: {} })
-
-    // Create roles
-    const adminRole = await tx.role.create({ data: { nama_role: 'ADMIN' } })
-    const teknisiRole = await tx.role.create({ data: { nama_role: 'TEKNISI' } })
-
-    // Create admin
-    const hashedPw = await bcrypt.hash(TEST_PASSWORD, 12)
-    const admin = await tx.user.create({
-      data: {
-        nama: TEST_ADMIN_NAME,
-        email: ADMIN_EMAIL,
-        password: hashedPw,
-        isActive: true
-      }
-    })
-    await tx.userRole.create({ data: { userId: admin.id, roleId: adminRole.id } })
-
-    // Create teknisi
-    const teknisiUser = await tx.user.create({
-      data: {
-        nama: TEST_TEKNISI_NAME,
-        email: TEKNISI_EMAIL,
-        password: hashedPw,
-        isActive: true
-      }
-    })
-    await tx.userRole.create({ data: { userId: teknisiUser.id, roleId: teknisiRole.id } })
-    await tx.dataTeknisi.create({
-      data: {
-        userId: teknisiUser.id,
-        noHp: '081234567890',
-        areaKerja: 'Test Area'
-      }
-    })
-
-    // Inactive user for test
-    const inactiveUser = await tx.user.create({
-      data: {
-        nama: 'Inactive',
-        email: 'inactive@test.com',
-        password: hashedPw,
-        isActive: false
-      }
-    })
-  })
-}
+import app from '../../src/app.js'
+import { loginLimiter } from '../../src/routes/auth.route.js'
+import { TEST_PASSWORD } from '../helpers/test-constants.js'
+import {
+  prisma,
+  ADMIN_EMAIL,
+  TEKNISI_EMAIL,
+  INACTIVE_EMAIL,
+  seedBaseUsers,
+  resetLoginLimiter
+} from '../helpers/test-helpers.js'
 
 describe('Auth API', () => {
   beforeEach(async () => {
-    // reset rate limit between tests to avoid test bleeding
-    try {
-      loginLimiter.resetKey('::ffff:127.0.0.1')
-      loginLimiter.resetKey('127.0.0.1')
-      loginLimiter.resetKey('::1')
-    } catch (e) {
-      // ignore if key not found
-    }
-    await seedTestData()
+    await resetLoginLimiter(loginLimiter)
+    await seedBaseUsers({ includeInactive: true })
   })
 
   afterAll(async () => {
@@ -118,7 +55,7 @@ describe('Auth API', () => {
     it('should reject inactive user', async () => {
       const res = await request(app)
         .post('/api/auth/login')
-        .send({ email: 'inactive@test.com', password: TEST_PASSWORD })
+        .send({ email: INACTIVE_EMAIL, password: TEST_PASSWORD })
 
       expect(res.status).toBe(403)
       expect(res.body.success).toBe(false)
@@ -131,8 +68,8 @@ describe('Auth API', () => {
         promises.push(request(app).post('/api/auth/login').send({ email: ADMIN_EMAIL, password: 'wrong' }))
       }
       const responses = await Promise.all(promises)
-      const last = responses[responses.length - 1]
-      expect(last.status).toBe(429)
+      const limitedResponses = responses.filter(r => r.status === 429)
+      expect(limitedResponses.length).toBeGreaterThan(0)
     }, 30000)
   })
 
@@ -165,6 +102,16 @@ describe('Auth API', () => {
 
       expect(res.status).toBe(200)
       expect(res.body.success).toBe(true)
+
+      const oldLoginRes = await request(app)
+        .post('/api/auth/login')
+        .send({ email: ADMIN_EMAIL, password: TEST_PASSWORD })
+      expect(oldLoginRes.status).toBe(401)
+
+      const newLoginRes = await request(app)
+        .post('/api/auth/login')
+        .send({ email: ADMIN_EMAIL, password: 'newpass123' })
+      expect(newLoginRes.status).toBe(200)
     })
 
     it('should reject wrong old password', async () => {
@@ -203,7 +150,8 @@ describe('Auth API', () => {
     let teknisiId
 
     beforeEach(async () => {
-      await seedTestData() // Ensure fresh data before login + lookup
+      await resetLoginLimiter(loginLimiter)
+      await seedBaseUsers({ includeInactive: true }) // Ensure fresh data before login + lookup
       const loginRes = await request(app)
         .post('/api/auth/login')
         .send({ email: ADMIN_EMAIL, password: TEST_PASSWORD })
@@ -221,6 +169,16 @@ describe('Auth API', () => {
 
       expect(res.status).toBe(200)
       expect(res.body.success).toBe(true)
+
+      const oldLoginRes = await request(app)
+        .post('/api/auth/login')
+        .send({ email: TEKNISI_EMAIL, password: TEST_PASSWORD })
+      expect(oldLoginRes.status).toBe(401)
+
+      const newLoginRes = await request(app)
+        .post('/api/auth/login')
+        .send({ email: TEKNISI_EMAIL, password: 'resetpass123' })
+      expect(newLoginRes.status).toBe(200)
     })
 
     it('should reject non-teknisi target', async () => {

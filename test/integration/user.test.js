@@ -1,84 +1,25 @@
 import request from 'supertest'
-import { PrismaClient } from '@prisma/client'
-import bcrypt from 'bcrypt'
-import app from '../src/app.js'
-import { TEST_ADMIN_EMAIL, TEST_TEKNISI_EMAIL, TEST_PASSWORD, TEST_ADMIN_NAME, TEST_TEKNISI_NAME } from './test-constants.js'
-
-const prisma = new PrismaClient()
-
-// Add unique suffix to avoid conflicts between test runs
-const uniqueId = Date.now()
-const ADMIN_EMAIL = `${TEST_ADMIN_EMAIL.split('@')[0]}_${uniqueId}@${TEST_ADMIN_EMAIL.split('@')[1]}`
-const TEKNISI_EMAIL = `${TEST_TEKNISI_EMAIL.split('@')[0]}_${uniqueId}@${TEST_TEKNISI_EMAIL.split('@')[1]}`
-
-// Helper to seed test data
-async function seedTestData() {
-  await prisma.$transaction(async (tx) => {
-    // Clear in correct order with CASCADE to ensure complete cleanup
-    await tx.dataTeknisi.deleteMany({ where: {} })
-    await tx.userRole.deleteMany({ where: {} })
-    await tx.user.deleteMany({ where: {} })
-    await tx.role.deleteMany({ where: {} })
-
-    // Create roles
-    const adminRole = await tx.role.create({ data: { nama_role: 'ADMIN' } })
-    const teknisiRole = await tx.role.create({ data: { nama_role: 'TEKNISI' } })
-
-    // Create admin
-    const hashedPw = await bcrypt.hash(TEST_PASSWORD, 12)
-    const admin = await tx.user.create({
-      data: {
-        nama: TEST_ADMIN_NAME,
-        email: ADMIN_EMAIL,
-        password: hashedPw,
-        isActive: true
-      }
-    })
-    await tx.userRole.create({ data: { userId: admin.id, roleId: adminRole.id } })
-
-    // Create teknisi
-    const teknisiUser = await tx.user.create({
-      data: {
-        nama: TEST_TEKNISI_NAME,
-        email: TEKNISI_EMAIL,
-        password: hashedPw,
-        isActive: true
-      }
-    })
-    await tx.userRole.create({ data: { userId: teknisiUser.id, roleId: teknisiRole.id } })
-    await tx.dataTeknisi.create({
-      data: {
-        userId: teknisiUser.id,
-        noHp: '081234567890',
-        areaKerja: 'Test Area',
-        alamat: 'Test Address'
-      }
-    })
-  })
-}
-
-// Helper to get auth token
-async function getAuthToken(email = ADMIN_EMAIL, password = TEST_PASSWORD) {
-  const res = await request(app)
-    .post('/api/auth/login')
-    .send({ email, password })
-
-  if (res.status !== 200 || !res.body.success) {
-    throw new Error(`Login failed: ${res.status} - ${JSON.stringify(res.body)}`)
-  }
-
-  return res.body.data.token
-}
+import app from '../../src/app.js'
+import { loginLimiter } from '../../src/routes/auth.route.js'
+import { TEST_PASSWORD } from '../helpers/test-constants.js'
+import {
+  prisma,
+  ADMIN_EMAIL,
+  TEKNISI_EMAIL,
+  makeEmail,
+  seedBaseUsers,
+  getAuthToken,
+  resetLoginLimiter
+} from '../helpers/test-helpers.js'
 
 describe('User API', () => {
   let adminToken, teknisiToken
 
   beforeEach(async () => {
-    await seedTestData()
-    console.log('✅ User test data seeded')
+    await resetLoginLimiter(loginLimiter)
+    await seedBaseUsers()
     adminToken = await getAuthToken(ADMIN_EMAIL, TEST_PASSWORD)
     teknisiToken = await getAuthToken(TEKNISI_EMAIL, TEST_PASSWORD)
-    console.log('✅ Tokens obtained')
   })
 
   afterAll(async () => {
@@ -89,7 +30,7 @@ describe('User API', () => {
     it('should create user successfully with admin token', async () => {
       const newUser = {
         name: 'New User',
-        email: 'newuser@test.com',
+        email: makeEmail('newuser'),
         password: 'newpass123',
         roles: ['TEKNISI'],
         noHp: '081234567891',
@@ -105,14 +46,14 @@ describe('User API', () => {
       expect(res.status).toBe(201)
       expect(res.body.success).toBe(true)
       expect(res.body.data.nama).toBe('New User')
-      expect(res.body.data.email).toBe('newuser@test.com')
+      expect(res.body.data.email).toBe(newUser.email)
       expect(res.body.data.roles).toContain('TEKNISI')
     })
 
     it('should generate temporary password if not provided', async () => {
       const newUser = {
         name: 'User No Pass',
-        email: 'nopass@test.com',
+        email: makeEmail('nopass'),
         roles: ['TEKNISI']
       }
 
@@ -160,7 +101,7 @@ describe('User API', () => {
     it('should reject without admin token', async () => {
       const newUser = {
         name: 'Unauthorized',
-        email: 'unauth@test.com',
+        email: makeEmail('unauth'),
         roles: ['TEKNISI']
       }
 
@@ -308,6 +249,8 @@ describe('User API', () => {
 
       expect(res.status).toBe(200)
       expect(res.body.success).toBe(true)
+      expect(res.body.data.teknisi.noHp).toBe('081234567892')
+      expect(res.body.data.teknisi.areaKerja).toBe('Self Updated Area')
     })
 
     it('should prevent teknisi from updating restricted fields', async () => {
