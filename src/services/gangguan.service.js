@@ -142,11 +142,15 @@ async function updateGangguan(id, data) {
   if (data.priority !== undefined) updateData.priority = data.priority
   if (data.deadline !== undefined) updateData.deadline = data.deadline ? new Date(data.deadline) : null
   if (data.status !== undefined) {
+    const status = String(data.status).trim().toLowerCase()
     const validStatuses = ['open', 'assigned', 'on_progress', 'done']
-    if (!validStatuses.includes(data.status)) {
-      throw { statusCode: 400, message: 'Status tidak valid' }
+    if (!validStatuses.includes(status)) {
+      throw {
+        statusCode: 400,
+        message: `Status tidak valid. Gunakan salah satu: ${validStatuses.join(', ')}`
+      }
     }
-    updateData.status = data.status
+    updateData.status = status
   }
 
   // Validasi lat long jika diupdate

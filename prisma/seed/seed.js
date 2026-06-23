@@ -21,7 +21,8 @@ async function main() {
     // ==============================
     // 2. ROLES
     // ==============================
-    const roleNames = ['ADMIN', 'TEKNISI']
+    const roleNames = ['SUPER_ADMIN', 'ADMIN', 'TEKNISI']
+
 
     const createdRoles = {}
 
@@ -36,7 +37,7 @@ async function main() {
     }
 
     // ==============================
-    // 3. ADMIN USER
+    // 3. ADMIN USER + SUPERADMIN
     // ==============================
     const adminEmail = 'admin@trackfo.com'
 
@@ -70,10 +71,45 @@ async function main() {
       },
     })
 
+    // Add dedicated SUPER_ADMIN account
+    const superAdminEmail = 'super@trackfo.com'
+    const superAdminUser = await prisma.user.upsert({
+      where: { email: superAdminEmail },
+      update: {
+        password: hashedPassword,
+      },
+      create: {
+        nama: 'Super Admin TrackFO',
+        email: superAdminEmail,
+        password: hashedPassword,
+        isActive: true,
+      },
+    })
+
+    console.log(`👤 ${superAdminEmail} ready👍.`)
+
+    // Assign role SUPER_ADMIN
+    await prisma.userRole.upsert({
+      where: {
+        userId_roleId: {
+          userId: superAdminUser.id,
+          roleId: createdRoles['SUPER_ADMIN'].id,
+        },
+      },
+      update: {},
+      create: {
+        userId: superAdminUser.id,
+        roleId: createdRoles['SUPER_ADMIN'].id,
+      },
+    })
+
+
+
     // ==============================
     // 4. SAMPLE TEKNISI
     // ==============================
     const teknisiEmail = 'teknisi1@trackfo.com'
+
 
     const teknisiUser = await prisma.user.upsert({
       where: { email: teknisiEmail },

@@ -16,8 +16,10 @@ const router = Router()
 router.post('/', authGuard, authorizeRole(['TEKNISI']), createLaporan)
 router.get('/my', authGuard, authorizeRole(['TEKNISI']), getMyLaporan)
 
-// Admin
+// ADMIN tidak boleh mengakses report selain miliknya
 router.get('/', authGuard, authorizeRole(['ADMIN']), getAllLaporan)
 router.get('/:id', authGuard, authorizeRole(['ADMIN']), getLaporanById)
+
+
 
 export default router

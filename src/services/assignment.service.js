@@ -1,24 +1,36 @@
 import prisma from '../../config/prisma.js'
 
-// STATUS FLOW VALIDATION
-// Enforce status flow: assigned → on_the_way → working → done
-// Teknisi hanya bisa update status sesuai flow, tidak boleh skip atau mundur status
+// STATUS FLOW VALIDATION (spec v2)
+// Enforce status flow:
+// assigned → accepted → on_the_way → working → pending_verification → done
+// pending_verification → rejected
+// rejected → working (rework)
+// Teknisi/Admin hanya boleh update status sesuai flow.
 const STATUS_FLOW = {
-  assigned: ['on_the_way'],
+  // Backward compatible with current tests/spec:
+  // assigned -> on_the_way (legacy)
+  // Also support new flow:
+  // assigned -> accepted -> on_the_way
+  assigned: ['accepted', 'on_the_way'],
+  accepted: ['on_the_way'],
   on_the_way: ['working'],
-  working: ['done'],
+  working: ['pending_verification', 'rejected'],
+  pending_verification: ['done', 'rejected'],
+  rejected: ['working'],
   done: [] // final state
 }
 
+
 function validateStatusTransition(currentStatus, newStatus) {
-  const allowedNextStatuses = STATUS_FLOW[currentStatus]
-  if (!allowedNextStatuses || !allowedNextStatuses.includes(newStatus)) {
+  const allowedNextStatuses = STATUS_FLOW[currentStatus] || []
+  if (!allowedNextStatuses.includes(newStatus)) {
     throw {
       statusCode: 400,
       message: `Tidak boleh mengubah status dari ${currentStatus} ke ${newStatus}. Status berikutnya yang valid: ${allowedNextStatuses.join(', ')}`
     }
   }
 }
+
 
 // HITUNG JARAK DENGAN HAVERSINE FORMULA
 function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -186,7 +198,18 @@ async function assignTeknisiToGangguan(gangguanId, assignmentData, assignedBy) {
         }
       })
 
+      // Initial status log saat assignment dibuat (status awal = assigned)
+      await tx.assignmentStatusLog.create({
+        data: {
+          assignmentId: assignment.id,
+          oldStatus: 'assigned',
+          newStatus: 'assigned',
+          changedByUserId: assignedBy || null
+        }
+      })
+
       assignments.push(assignment)
+
 
       // Update status teknisi ke busy
       await tx.dataTeknisi.update({
@@ -221,8 +244,21 @@ async function getAssignmentsByGangguanId(gangguanId) {
 }
 
 // UPDATE STATUS ASSIGNMENT
-async function updateAssignmentStatus(assignmentId, status, teknisiId) {
-  const validStatuses = ['assigned', 'on_the_way', 'working', 'done']
+async function updateAssignmentStatus(assignmentId, status, teknisiUserId, changedByUserId) {
+  const validStatuses = [
+    'assigned',
+    'accepted',
+    'on_the_way',
+    'working',
+    'pending_verification',
+    'rejected',
+    'done'
+  ]
+
+  const assignmentIdNum = Number(assignmentId)
+  if (Number.isNaN(assignmentIdNum)) {
+    throw { statusCode: 400, message: 'assignmentId tidak valid' }
+  }
   if (!validStatuses.includes(status)) {
     throw { statusCode: 400, message: 'Status assignment tidak valid' }
   }
@@ -237,20 +273,36 @@ async function updateAssignmentStatus(assignmentId, status, teknisiId) {
   }
 
   // Cek apakah teknisi yang update adalah yang di-assign
-  if (assignment.teknisi.userId !== teknisiId) {
+  if (assignment.teknisi.userId !== teknisiUserId) {
     throw { statusCode: 403, message: 'Anda tidak memiliki akses ke assignment ini' }
   }
 
   // BUSINESS RULE: Enforce status flow transition
-  validateStatusTransition(assignment.status, status)
+  const currentStatus = assignment.status
+  validateStatusTransition(currentStatus, status)
 
   return await prisma.$transaction(async (tx) => {
+    // Evidence gating:
+    // - Spec/test expectation: allow `on_the_way` -> `working` without WorkEvidence.
+    // - If evidence requirements are needed, they should be enforced by a different
+    //   workflow step/end-point (e.g. when submitting/confirming reports).
+
     // Update assignment status
     const updatedAssignment = await tx.assignment.update({
       where: { id: Number(assignmentId) },
       data: { status },
       include: {
         teknisi: { include: { user: true } }
+      }
+    })
+
+    // Status transition logging
+    await tx.assignmentStatusLog.create({
+      data: {
+        assignmentId: Number(assignmentId),
+        oldStatus: currentStatus,
+        newStatus: status,
+        changedByUserId: changedByUserId || assignment.teknisi.userId
       }
     })
 

@@ -1,0 +1,280 @@
+Ringkasan E2E Test
+==================
+
+File yang diperiksa:
+- test/e2e/full-workflow.e2e.test.js
+- test/helpers/test-helpers.js
+- test/helpers/test-constants.js
+- test/helpers/setup.js
+
+Gambaran umum
+-------------
+E2E test saat ini berisi satu suite bernama "E2E Full Workflow" dengan satu skenario utama:
+"should complete the main issue handling flow from creation until report verification".
+
+Skenario ini menguji alur penuh penanganan gangguan dari sisi API, mulai dari admin membuat gangguan,
+admin menugaskan teknisi, teknisi melihat tugas dan mengirim lokasi, teknisi mengubah status pekerjaan,
+teknisi membuat laporan penyelesaian, lalu admin dan teknisi memverifikasi hasilnya. Di akhir test,
+data juga dicek langsung ke database lewat Prisma untuk memastikan perubahan status benar-benar tersimpan.
+
+Setup data test
+---------------
+Sebelum setiap test berjalan, ada beberapa persiapan:
+
+1. Reset login limiter
+   - Fungsi resetLoginLimiter dipanggil untuk membersihkan rate limiter login untuk alamat localhost:
+     ::ffff:127.0.0.1, 127.0.0.1, dan ::1.
+   - Tujuannya agar test login tidak gagal karena sisa hit rate limit dari test sebelumnya.
+
+2. Seed user dasar
+   - Fungsi seedBaseUsers membuat ulang data user test.
+   - Email admin dan teknisi dibuat unik memakai Date.now(), sehingga formatnya menjadi seperti:
+     admin_<timestamp>@trackfo.com dan teknisi1_<timestamp>@trackfo.com.
+   - Password yang dipakai adalah password999.
+   - Role yang dipastikan tersedia:
+     - ADMIN
+     - TEKNISI
+   - User admin dibuat aktif dan diberi role ADMIN.
+   - User teknisi dibuat aktif, diberi role TEKNISI, dan dibuatkan data teknisi dengan:
+     - noHp: 081234567890
+     - areaKerja: Test Area
+     - alamat: Test Address
+
+3. Ambil token autentikasi
+   - Admin login melalui POST /api/auth/login.
+   - Teknisi login melalui POST /api/auth/login.
+   - Token dari keduanya dipakai untuk request berikutnya dengan header Authorization: Bearer <token>.
+
+4. Ambil data teknisi
+   - Test mengambil record dataTeknisi berdasarkan email user teknisi.
+   - Data ini dipakai untuk assignment dan pengecekan akhir status teknisi.
+
+Detail alur yang diuji
+----------------------
+1. Admin membuat gangguan baru
+   Endpoint:
+   - POST /api/issues
+
+   Token:
+   - Admin
+
+   Payload:
+   - judul: Gardu padam total
+   - deskripsi: Perlu penanganan penuh dari teknisi
+   - latitude: -6.201
+   - longitude: 106.816
+   - alamat: Jl. Merdeka No. 1
+   - priority: high
+
+   Ekspektasi:
+   - HTTP status 201
+   - response body success bernilai true
+   - id gangguan berhasil didapat dari response body data.id
+
+2. Admin menugaskan gangguan ke teknisi
+   Endpoint:
+   - POST /api/issues/:issueId/assign
+
+   Token:
+   - Admin
+
+   Payload:
+   - teknisiIds berisi userId teknisi
+   - method: manual
+
+   Ekspektasi:
+   - HTTP status 200
+   - response body success bernilai true
+   - response body data berisi tepat 1 assignment
+   - id assignment berhasil diambil dari response body data[0].id
+
+3. Teknisi melihat daftar tugas miliknya
+   Endpoint:
+   - GET /api/issues/my/tasks
+
+   Token:
+   - Teknisi
+
+   Ekspektasi:
+   - HTTP status 200
+   - response body success bernilai true
+   - daftar tugas teknisi memuat gangguan yang baru dibuat
+   - pengecekan dilakukan dengan mencari task yang gangguan.id-nya sama dengan issueId
+
+4. Teknisi mengirim data tracking lokasi
+   Endpoint:
+   - POST /api/tracking
+
+   Token:
+   - Teknisi
+
+   Payload:
+   - latitude: -6.202
+   - longitude: 106.817
+
+   Ekspektasi:
+   - HTTP status 200
+   - response body success bernilai true
+   - response body data.tracked bernilai true
+
+5. Teknisi mengubah status assignment menjadi on_the_way
+   Endpoint:
+   - PATCH /api/issues/assignment/:assignmentId/status
+
+   Token:
+   - Teknisi
+
+   Payload:
+   - status: on_the_way
+
+   Ekspektasi:
+   - HTTP status 200
+   - response body data.status bernilai on_the_way
+
+6. Teknisi mengubah status assignment menjadi working
+   Endpoint:
+   - PATCH /api/issues/assignment/:assignmentId/status
+
+   Token:
+   - Teknisi
+
+   Payload:
+   - status: working
+
+   Ekspektasi:
+   - HTTP status 200
+   - response body data.status bernilai working
+
+7. Teknisi membuat laporan penyelesaian
+   Endpoint:
+   - POST /api/reports
+
+   Token:
+   - Teknisi
+
+   Payload:
+   - gangguanId: id gangguan yang dibuat di awal test
+   - catatan: Perbaikan selesai, listrik sudah normal
+   - foto: foto-hasil.jpg
+
+   Ekspektasi:
+   - HTTP status 201
+   - response body success bernilai true
+   - response body data.gangguanId sama dengan issueId
+   - id laporan berhasil diambil dari response body data.id
+
+8. Admin melihat detail laporan
+   Endpoint:
+   - GET /api/reports/:reportId
+
+   Token:
+   - Admin
+
+   Ekspektasi:
+   - HTTP status 200
+   - response body success bernilai true
+   - response body data.id sama dengan reportId
+   - response body data.gangguanId sama dengan issueId
+
+9. Admin melihat detail gangguan setelah laporan dibuat
+   Endpoint:
+   - GET /api/issues/:issueId
+
+   Token:
+   - Admin
+
+   Ekspektasi:
+   - HTTP status 200
+   - response body success bernilai true
+   - status gangguan sudah berubah menjadi done
+
+10. Admin melihat data tracking terbaru
+    Endpoint:
+    - GET /api/tracking
+
+    Token:
+    - Admin
+
+    Ekspektasi:
+    - HTTP status 200
+    - response body success bernilai true
+    - daftar tracking memuat item dengan userId milik teknisi test
+
+11. Teknisi melihat daftar laporan miliknya
+    Endpoint:
+    - GET /api/reports/my
+
+    Token:
+    - Teknisi
+
+    Ekspektasi:
+    - HTTP status 200
+    - response body success bernilai true
+    - daftar laporan teknisi memuat laporan yang baru dibuat
+
+Validasi langsung ke database
+-----------------------------
+Setelah seluruh request API selesai, test mengambil data langsung dari database memakai Prisma:
+
+1. gangguan
+   Query:
+   - prisma.gangguan.findUnique({ where: { id: issueId } })
+
+   Ekspektasi:
+   - status gangguan di database bernilai done
+
+2. assignment
+   Query:
+   - prisma.assignment.findMany({ where: { gangguanId: issueId } })
+
+   Ekspektasi:
+   - semua assignment untuk gangguan tersebut memiliki status done
+
+3. dataTeknisi
+   Query:
+   - prisma.dataTeknisi.findUnique({ where: { id: teknisi.id } })
+
+   Ekspektasi:
+   - status teknisi kembali menjadi available
+
+Cakupan fitur yang tercakup
+---------------------------
+E2E test ini mencakup integrasi beberapa fitur utama:
+
+- Login/authentication untuk admin dan teknisi.
+- Authorization berbasis token pada endpoint admin dan teknisi.
+- Pembuatan gangguan oleh admin.
+- Assignment gangguan ke teknisi secara manual.
+- Daftar tugas milik teknisi.
+- Tracking lokasi teknisi.
+- Perubahan status assignment dari on_the_way ke working.
+- Pembuatan laporan oleh teknisi.
+- Perubahan status gangguan menjadi done setelah laporan dibuat.
+- Detail laporan bisa dibaca admin.
+- Laporan milik teknisi bisa dibaca teknisi.
+- Konsistensi data akhir di database untuk gangguan, assignment, dan status teknisi.
+
+Hal yang tidak diuji oleh file e2e ini
+-------------------------------------
+Beberapa hal yang belum terlihat diuji di file e2e ini:
+
+- Skenario gagal login atau token tidak valid.
+- Admin/teknisi tanpa izin yang mencoba endpoint terlarang.
+- Validasi payload kosong atau payload tidak valid pada pembuatan gangguan, assignment, tracking, dan laporan.
+- Assignment ke lebih dari satu teknisi.
+- Assignment otomatis, karena test hanya memakai method manual.
+- Transisi status lain selain on_the_way dan working.
+- Kondisi ketika teknisi belum punya tugas.
+- Kondisi ketika laporan dibuat untuk gangguan yang tidak ada atau bukan milik teknisi.
+- Upload file foto nyata, karena foto hanya dikirim sebagai string foto-hasil.jpg.
+- Paginasi, filter, atau sorting pada daftar tracking, tugas, dan laporan.
+
+Kesimpulan
+----------
+File e2e ini menguji satu happy path besar end-to-end untuk proses utama aplikasi:
+admin membuat gangguan, teknisi menerima dan menangani tugas, teknisi mengirim tracking,
+teknisi membuat laporan, lalu sistem menandai gangguan dan assignment sebagai done serta
+mengembalikan status teknisi menjadi available.
+
+Test ini berguna sebagai smoke test alur bisnis utama karena menyentuh banyak endpoint dan
+memastikan hasil akhirnya konsisten sampai level database.

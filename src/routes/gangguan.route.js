@@ -14,16 +14,26 @@ import authorizeRole from '../middlewares/role.middleware.js'
 
 const router = Router()
 
-// Admin
-router.post('/', authGuard, authorizeRole(['ADMIN']), createGangguan)
-router.get('/', authGuard, authorizeRole(['ADMIN']), getAllGangguan)
-router.patch('/:id', authGuard, authorizeRole(['ADMIN']), updateGangguan)
+// SUPER_ADMIN & ADMIN
+router.post('/', authGuard, authorizeRole(['ADMIN', 'SUPER_ADMIN']), createGangguan)
+router.get('/', authGuard, authorizeRole(['ADMIN', 'SUPER_ADMIN']), getAllGangguan)
+router.patch('/:id', authGuard, authorizeRole(['ADMIN', 'SUPER_ADMIN']), updateGangguan)
+router.get('/:id', authGuard, authorizeRole(['ADMIN', 'SUPER_ADMIN']), getGangguanById)
+
+// Delete hanya boleh oleh SUPER_ADMIN (ADMIN tidak boleh menghapus gangguan)
+router.delete('/:id', authGuard, authorizeRole(['SUPER_ADMIN']), async (req, res) => {
+  // placeholder: delete endpoint saat ini belum ada di route gangguan.
+  // Pastikan controller gangguan delete diimplementasikan jika diperlukan.
+  res.status(501).json({ success: false, message: 'Delete gangguan belum diimplementasi pada backend.' })
+})
+
+
+
+// (Catatan) SUPER_ADMIN juga boleh akses view keseluruhan via rule di atas.
 
 // Teknisi
 router.get('/my/tasks', authGuard, authorizeRole(['TEKNISI']), getMyTasks)
 
-// Admin
-router.get('/:id', authGuard, authorizeRole(['ADMIN']), getGangguanById)
 
 // Nested: assignment
 router.use('/', assignmentRoute)

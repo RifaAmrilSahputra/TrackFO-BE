@@ -11,9 +11,9 @@ import authorizeRole from '../middlewares/role.middleware.js'
 
 const router = Router()
 
-// Admin
-router.post('/:id/assign', authGuard, authorizeRole(['ADMIN']), assignTeknisiToGangguan)
-router.get('/:id/assignments', authGuard, authorizeRole(['ADMIN']), getAssignmentsByGangguanId)
+// SUPER_ADMIN + ADMIN
+router.post('/:id/assign', authGuard, authorizeRole(['SUPER_ADMIN', 'ADMIN']), assignTeknisiToGangguan)
+router.get('/:id/assignments', authGuard, authorizeRole(['SUPER_ADMIN', 'ADMIN']), getAssignmentsByGangguanId)
 
 // Teknisi
 router.patch(
@@ -22,5 +22,6 @@ router.patch(
   authorizeRole(['TEKNISI']),
   updateAssignmentStatus
 )
+
 
 export default router

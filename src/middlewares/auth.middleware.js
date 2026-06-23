@@ -16,7 +16,6 @@ const authGuard = async (req, res, next) => {
 
     const token = authHeader.split(' ')[1];
 
-    // 2. Verifikasi Token (Melempar error jika expired/invalid)
     const decoded = verifyToken(token);
 
     // 3. Database Sync: Pastikan data user & role paling update
@@ -38,12 +37,16 @@ const authGuard = async (req, res, next) => {
     }
 
     // 5. Cek status aktif (Soft Delete/Suspended check)
+    // Jika isActive false, blokir request
     if (!user.isActive) {
       return res.status(403).json({
         success: false,
         message: 'Akun Anda telah dinonaktifkan',
       });
     }
+
+
+
 
     // 6. Pasang data user yang sudah di-format ke object request (req.user)
     // Kita simpan roles sebagai array string murni: ['ADMIN', 'TEKNISI']

@@ -18,12 +18,14 @@ const router = Router()
 router.get('/me', authGuard, authorizeRole(['TEKNISI']), getMyProfile)
 router.patch('/me', authGuard, authorizeRole(['TEKNISI']), updateMyProfile)
 
-// Admin
-router.get('/teknisi', authGuard, authorizeRole(['ADMIN']), getAllTeknisi)
-router.post('/', authGuard, authorizeRole(['ADMIN']), createUser)
+// SUPER_ADMIN saja yang boleh mengelola Admin/Teknisi
+router.get('/teknisi', authGuard, authorizeRole(['SUPER_ADMIN']), getAllTeknisi)
+router.post('/', authGuard, authorizeRole(['SUPER_ADMIN']), createUser)
 
 // By ID
-router.patch('/:id', authGuard, authorizeRole(['ADMIN', 'TEKNISI']), updateTeknisi)
-router.delete('/:id', authGuard, authorizeRole(['ADMIN']), deleteUser)
+router.patch('/:id', authGuard, authorizeRole(['SUPER_ADMIN', 'TEKNISI']), updateTeknisi)
+router.delete('/:id', authGuard, authorizeRole(['SUPER_ADMIN']), deleteUser)
+
+
 
 export default router

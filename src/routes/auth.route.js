@@ -31,9 +31,10 @@ router.patch('/change-password', authGuard, changeMyPassword)
 router.patch(
   '/users/:id/password',
   authGuard,
-  authorizeRole(['ADMIN']),
+  authorizeRole(['ADMIN', 'SUPER_ADMIN']),
   changeTeknisiPassword
 )
+
 
 export { loginLimiter }
 export default router

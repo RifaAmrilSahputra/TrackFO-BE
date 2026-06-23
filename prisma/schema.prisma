@@ -15,8 +15,8 @@ model User {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  roles     UserRole[]
-  teknisi   DataTeknisi?
+  roles   UserRole[]
+  teknisi DataTeknisi?
 }
 
 model Role {
@@ -37,66 +37,108 @@ model UserRole {
 }
 
 model DataTeknisi {
-  id         Int     @id @default(autoincrement())
-  userId     Int     @unique
-  noHp       String
-  areaKerja  String
-  alamat     String?
+  id        Int     @id @default(autoincrement())
+  userId    Int     @unique
+  noHp      String
+  areaKerja String
+  alamat    String?
 
-  latitude   Float?
-  longitude  Float?
-  lastSeen   DateTime?   // untuk cek aktif/tidak
-  status     String  @default("available") // available, busy, off
+  latitude  Float?
+  longitude Float?
+  lastSeen  DateTime? // untuk cek aktif/tidak
+  status    String    @default("available") // available, busy, off
 
-  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   assignments Assignment[]
   trackings   Tracking[]
   laporan     Laporan[]
 }
 
 model Gangguan {
-  id          Int      @id @default(autoincrement())
-  judul       String
-  deskripsi   String
-  latitude    Float
-  longitude   Float
-  alamat      String
+  id        Int    @id @default(autoincrement())
+  judul     String
+  deskripsi String
+  latitude  Float
+  longitude Float
+  alamat    String
 
-  status      String   @default("open") // open, assigned, on_progress, done
-  priority    String?  // low, medium, high
-  deadline    DateTime?
+  status   String    @default("open") // open, assigned, on_progress, done
+  priority String? // low, medium, high
+  deadline DateTime?
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   assignments Assignment[]
   laporan     Laporan[]
 }
 
 model Assignment {
-  id          Int      @id @default(autoincrement())
-  gangguanId  Int
-  teknisiId   Int
+  id         Int @id @default(autoincrement())
+  gangguanId Int
+  teknisiId  Int
 
-  isLeader    Boolean  @default(false)
-  status      String   @default("assigned") // assigned, on_the_way, working, done
+  isLeader Boolean @default(false)
+  status   String  @default("assigned")
 
-  assignedAt  DateTime @default(now())
-  assignedBy  Int?     // admin yang assign
-  method      String?  // manual / auto
+  assignedAt DateTime @default(now())
+  assignedBy Int? // admin yang assign
+  method     String? // manual / auto
 
-  gangguan Gangguan @relation(fields: [gangguanId], references: [id], onDelete: Cascade)
+  gangguan Gangguan    @relation(fields: [gangguanId], references: [id], onDelete: Cascade)
   teknisi  DataTeknisi @relation(fields: [teknisiId], references: [id], onDelete: Cascade)
+
+  statusHistories AssignmentStatusLog[]
+  evidences       WorkEvidence[]
 
   @@index([gangguanId])
   @@index([teknisiId])
 }
 
+model AssignmentStatusLog {
+  id Int @id @default(autoincrement())
+
+  assignmentId Int
+  oldStatus    String
+  newStatus    String
+
+  changedByUserId Int
+
+  createdAt DateTime @default(now())
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@index([assignmentId])
+  @@index([changedByUserId])
+  @@index([createdAt])
+}
+
+
+model WorkEvidence {
+  id Int @id @default(autoincrement())
+
+  assignmentId Int
+  teknisiId Int
+
+  fileUrl  String
+  latitude Float?
+  longitude Float?
+
+  uploadedAt DateTime @default(now())
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@index([assignmentId])
+  @@index([teknisiId])
+  @@index([uploadedAt])
+}
+
+
 model Tracking {
-  id          Int      @id @default(autoincrement())
-  teknisiId   Int
-  latitude    Float
-  longitude   Float
-  recordedAt  DateTime @default(now())
+  id         Int      @id @default(autoincrement())
+  teknisiId  Int
+  latitude   Float
+  longitude  Float
+  recordedAt DateTime @default(now())
 
   teknisi DataTeknisi @relation(fields: [teknisiId], references: [id], onDelete: Cascade)
 
@@ -104,15 +146,15 @@ model Tracking {
 }
 
 model Laporan {
-  id           Int      @id @default(autoincrement())
-  gangguanId   Int
-  teknisiId    Int // leader yang submit
+  id         Int @id @default(autoincrement())
+  gangguanId Int
+  teknisiId  Int // leader yang submit
 
   catatan      String
   foto         String?
   waktuSelesai DateTime @default(now())
 
-  gangguan Gangguan @relation(fields: [gangguanId], references: [id], onDelete: Cascade)
+  gangguan Gangguan    @relation(fields: [gangguanId], references: [id], onDelete: Cascade)
   teknisi  DataTeknisi @relation(fields: [teknisiId], references: [id], onDelete: Cascade)
 
   @@index([gangguanId])

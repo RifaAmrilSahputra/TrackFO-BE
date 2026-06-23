@@ -67,10 +67,11 @@ async function deleteUser(req, res, next) {
   }
 }
 
-// GET ALL TEKNISI (Admin)
+    // GET ALL TEKNISI (Admin + SUPER_ADMIN)
 async function getAllTeknisi(req, res, next) {
   try {
     const teknisiList = await userService.getUsersByRole('TEKNISI')
+
     
     res.json({
       success: true,
@@ -90,7 +91,8 @@ async function updateTeknisi(req, res, next) {
     const updateData = req.body
 
     // Authorization Check
-    const isAdmin = authUser.roles.includes('ADMIN')
+    const isAdmin = authUser.roles.includes('ADMIN') || authUser.roles.includes('SUPER_ADMIN')
+
     const isSelf = authUser.id === Number(id)
 
     if (!isAdmin && !isSelf) {
