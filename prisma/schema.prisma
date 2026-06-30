@@ -55,19 +55,31 @@ model DataTeknisi {
 }
 
 model Gangguan {
-  id        Int    @id @default(autoincrement())
-  judul     String
-  deskripsi String
-  latitude  Float
-  longitude Float
-  alamat    String
+  id          Int      @id @default(autoincrement())
+  judul       String
+  deskripsi   String
 
-  status   String    @default("open") // open, assigned, on_progress, done
-  priority String? // low, medium, high
-  deadline DateTime?
+  // Area gangguan
+  area        String
 
-  createdAt DateTime @default(now())
+  // Lokasi gangguan
+  latitude    Float
+  longitude   Float
+  alamat      String
 
+  // Status gangguan
+  status      String   @default("open") // open, assigned, on_progress, done
+
+  // Prioritas
+  priority    String?  // low, medium, high
+
+  // Target penyelesaian
+  deadline    DateTime?
+
+  // Waktu dibuat
+  createdAt   DateTime @default(now())
+
+  // Relasi
   assignments Assignment[]
   laporan     Laporan[]
 }
