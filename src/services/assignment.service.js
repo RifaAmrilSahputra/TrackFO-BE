@@ -113,10 +113,18 @@ async function assignTeknisiToGangguan(gangguanId, assignmentData, assignedBy) {
   return await prisma.$transaction(async (tx) => {
     // 1. Cek gangguan exists dan status open/assigned
     const gangguan = await tx.gangguan.findUnique({
-      where: { id: Number(gangguanId) },
-      include: { assignments: true }
+        where: {
+            id: Number(gangguanId)
+        },
+        include: {
+            assignments: {
+                include: {
+                    teknisi: true
+                }
+            }
+        }
     })
-
+    
     if (!gangguan) {
       throw { statusCode: 404, message: 'Gangguan tidak ditemukan' }
     }

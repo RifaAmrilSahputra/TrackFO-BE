@@ -67,12 +67,15 @@ async function deleteUser(req, res, next) {
   }
 }
 
-    // GET ALL TEKNISI (Admin + SUPER_ADMIN)
+// GET ALL TEKNISI (Admin + SUPER_ADMIN)
 async function getAllTeknisi(req, res, next) {
   try {
-    const teknisiList = await userService.getUsersByRole('TEKNISI')
+    const { area } = req.query
 
-    
+    const teknisiList = area
+      ? await userService.getTeknisiByArea(area)
+      : await userService.getUsersByRole('TEKNISI')
+
     res.json({
       success: true,
       message: 'Data teknisi berhasil diambil',
@@ -152,11 +155,26 @@ async function getMyProfile(req, res, next) {
   }
 }
 
+// GET Areas
+async function getAreas(req, res, next) {
+  try {
+    const areas = await userService.getAreas()
+
+    res.json({
+      success: true,
+      data: areas
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
 export { 
   createUser, 
   deleteUser, 
   getAllTeknisi, 
   updateTeknisi, 
   updateMyProfile,
-  getMyProfile 
-}
+  getMyProfile,
+  getAreas
+} 

@@ -167,6 +167,69 @@ async function getUserById(id) {
   return formatUserResponse(user)
 }
 
+// Get Teknisi by Area
+async function getTeknisiByArea(area) {
+
+    // Validasi
+    if (!area?.trim()) {
+      throw {
+        statusCode: 400,
+        message: 'Area wajib diisi'
+      }
+    } 
+
+    const teknisi = await prisma.dataTeknisi.findMany({
+      where: {
+        areaKerja: area.trim(),
+        user: {
+          isActive: true
+        }
+      },
+      include: {
+        user: true
+      },
+      orderBy: [
+        {
+          status: 'asc'
+        },
+        {
+          user: {
+            nama: 'asc'
+          }
+        }
+      ]
+    })
+
+    return teknisi.map(t => ({
+      id: t.userId,
+      nama: t.user.nama,
+      email: t.user.email,
+      noHp: t.noHp,
+      status: t.status,
+      areaKerja: t.areaKerja
+    }))
+}
+
+// Get All Area
+async function getAreas() {
+  const areas = await prisma.dataTeknisi.findMany({
+    distinct: ['areaKerja'],
+    select: {
+      areaKerja: true
+    },
+    where: {
+      user: {
+        isActive: true
+      }
+    },
+    orderBy: {
+      areaKerja: 'asc'
+    }
+  })
+
+  return areas.map(a => a.areaKerja)
+}
+
 export default {
   createUserWithProfile,
   updateFullUserProfile,
@@ -174,5 +237,7 @@ export default {
   deleteUser,
   updatePassword,
   getUserById,
+  getTeknisiByArea,
+  getAreas,
   getUserByEmail: (email) => prisma.user.findUnique({ where: { email: email.toLowerCase() } })
 }

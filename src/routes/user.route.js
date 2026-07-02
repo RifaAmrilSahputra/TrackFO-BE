@@ -6,7 +6,8 @@ import {
   getAllTeknisi,
   updateTeknisi,
   updateMyProfile,
-  getMyProfile
+  getMyProfile,
+  getAreas
 } from '../controllers/user.controller.js'
 
 import authGuard from '../middlewares/auth.middleware.js'
@@ -26,6 +27,11 @@ router.post('/', authGuard, authorizeRole(['SUPER_ADMIN']), createUser)
 router.patch('/:id', authGuard, authorizeRole(['SUPER_ADMIN', 'TEKNISI']), updateTeknisi)
 router.delete('/:id', authGuard, authorizeRole(['SUPER_ADMIN']), deleteUser)
 
-
+router.get(
+  '/areas',
+  authGuard,
+  authorizeRole(['SUPER_ADMIN']),
+  getAreas
+)
 
 export default router

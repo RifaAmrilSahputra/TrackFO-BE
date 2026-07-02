@@ -7,6 +7,7 @@ const formatGangguanResponse = (gangguan) => {
     id: gangguan.id,
     judul: gangguan.judul,
     deskripsi: gangguan.deskripsi,
+    area: gangguan.area,
     latitude: gangguan.latitude,
     longitude: gangguan.longitude,
     alamat: gangguan.alamat,
@@ -34,11 +35,14 @@ const formatGangguanResponse = (gangguan) => {
 
 // CREATE GANGGUAN (Admin)
 async function createGangguan(data, createdBy) {
-  const { judul, deskripsi, latitude, longitude, alamat, priority, deadline } = data
+  const { judul, deskripsi, area, latitude, longitude, alamat, priority, deadline } = data
 
   // Validasi wajib
-  if (!judul?.trim() || !deskripsi?.trim()) {
-    throw { statusCode: 400, message: 'Judul dan deskripsi wajib diisi' }
+  if (!judul?.trim() || !deskripsi?.trim() || !area?.trim()) {
+    throw {
+      statusCode: 400,
+      message: 'Judul, deskripsi, dan area wajib diisi'
+    }
   }
   if (latitude === undefined || longitude === undefined) {
     throw { statusCode: 400, message: 'Latitude dan longitude wajib diisi' }
@@ -51,6 +55,7 @@ async function createGangguan(data, createdBy) {
     data: {
       judul: judul.trim(),
       deskripsi: deskripsi.trim(),
+      area: area.trim(),
       latitude: parseFloat(latitude),
       longitude: parseFloat(longitude),
       alamat: alamat?.trim() || '',
@@ -138,6 +143,7 @@ async function updateGangguan(id, data) {
 
   if (data.judul !== undefined) updateData.judul = data.judul.trim()
   if (data.deskripsi !== undefined) updateData.deskripsi = data.deskripsi.trim()
+  if (data.area !== undefined) updateData.area = data.area.trim()
   if (data.alamat !== undefined) updateData.alamat = data.alamat.trim()
   if (data.priority !== undefined) updateData.priority = data.priority
   if (data.deadline !== undefined) updateData.deadline = data.deadline ? new Date(data.deadline) : null
