@@ -109,6 +109,13 @@ async function findBestTeknisi(gangguanLat, gangguanLon, excludeIds = []) {
 // ASSIGN TEKNISI KE GANGGUAN (Manual atau Auto)
 async function assignTeknisiToGangguan(gangguanId, assignmentData, assignedBy) {
   const { teknisiIds, method = 'manual' } = assignmentData
+  const validMethods = ['manual', 'auto']
+  if (!validMethods.includes(method)) {
+    throw {
+      statusCode: 400,
+      message: 'Method assignment tidak valid.'
+    }
+  }
 
   return await prisma.$transaction(async (tx) => {
     // 1. Cek gangguan exists dan status open/assigned
@@ -133,6 +140,23 @@ async function assignTeknisiToGangguan(gangguanId, assignmentData, assignedBy) {
       throw { statusCode: 400, message: 'Gangguan sudah selesai' }
     }
 
+    const existingAssignments = await tx.assignment.findMany({
+      where: {
+        gangguanId: Number(gangguanId)
+      },
+      include: {
+        teknisi: {
+          include: {
+            user: true
+          }
+        }
+      }
+    })
+
+    const assignedTeknisiIds = new Set(
+      existingAssignments.map(assignment => assignment.teknisiId)
+    )
+
     // 2. Tentukan teknisi yang akan di-assign
     let selectedTeknisi = []
 
@@ -150,45 +174,111 @@ async function assignTeknisiToGangguan(gangguanId, assignmentData, assignedBy) {
         throw { statusCode: 400, message: 'teknisiIds wajib diisi untuk assign manual' }
       }
 
+      const uniqueIds = [...new Set(teknisiIds)]
+      if (uniqueIds.length !== teknisiIds.length) {
+        throw {
+          statusCode: 400,
+          message: 'Terdapat teknisi yang dipilih lebih dari satu kali.'
+        }
+      }
+
+      const assignedTeknisiNames = existingAssignments
+        .filter(assignment => uniqueIds.includes(assignment.teknisi.userId))
+        .map(assignment => assignment.teknisi.user.nama)
+
+      if (assignedTeknisiNames.length > 0) {
+        throw {
+          statusCode: 400,
+          message: `Teknisi sudah ditugaskan pada gangguan ini: ${assignedTeknisiNames.join(', ')}`
+        }
+      }
+
       // BUSINESS RULE: Tidak bisa assign teknisi yang busy
       // Validasi teknisi exists dan available
       const teknisiRecords = await tx.dataTeknisi.findMany({
         where: {
-          userId: { in: teknisiIds },
+          userId: {
+            in: teknisiIds
+          },
           status: 'available',
-          user: { isActive: true }
+          user: {
+            isActive: true
+          }
         },
-        include: { user: true }
+        include: {
+          user: true
+        }
       })
 
       if (teknisiRecords.length !== teknisiIds.length) {
-        throw { statusCode: 400, message: 'Beberapa teknisi tidak valid, tidak tersedia, atau sedang busy. Hanya teknisi dengan status available yang bisa di-assign.' }
+        throw {
+          statusCode: 400,
+          message: 'Beberapa teknisi tidak valid atau tidak tersedia.'
+        }
+      }
+
+      const teknisiFromDifferentArea = teknisiRecords.find(
+        teknisi => teknisi.areaKerja !== gangguan.area
+      )
+      if (teknisiFromDifferentArea) {
+        throw {
+          statusCode: 400,
+          message: `Teknisi ${teknisiFromDifferentArea.user.nama} bukan berasal dari area ${gangguan.area}.`
+        }
       }
 
       selectedTeknisi = teknisiRecords
     }
 
-    // 3. Tentukan leader
+    // 3. Tentukan Leader
     let leaderIndex = 0
+
     if (selectedTeknisi.length > 1) {
-      // Jika lebih dari 1, cek apakah ada yang ditentukan sebagai leader
-      if (assignmentData.leaderId) {
-        const leaderIdx = selectedTeknisi.findIndex(t => t.userId === assignmentData.leaderId)
-        if (leaderIdx === -1) {
-          throw { statusCode: 400, message: 'Leader ID tidak valid' }
+      const leaderId = Number(assignmentData.leaderId)
+
+      // Leader wajib dipilih jika teknisi lebih dari satu
+      if (!assignmentData.leaderId) {
+        throw {
+          statusCode: 400,
+          message: 'Pilih salah satu teknisi sebagai leader.'
         }
-        leaderIndex = leaderIdx
-      } else {
-        // Default leader adalah yang pertama
-        leaderIndex = 0
       }
+
+      // Leader harus termasuk teknisi yang dipilih
+      if (!teknisiIds.includes(leaderId)) {
+        throw {
+          statusCode: 400,
+          message: 'Leader harus termasuk dalam teknisi yang dipilih.'
+        }
+      }
+
+      const leaderIdx = selectedTeknisi.findIndex(
+        t => t.userId === leaderId
+      )
+
+      if (leaderIdx === -1) {
+        throw {
+          statusCode: 400,
+          message: 'Leader tidak valid.'
+        }
+      }
+
+      leaderIndex = leaderIdx
     }
 
     // 4. Buat assignments
     const assignments = []
     for (let i = 0; i < selectedTeknisi.length; i++) {
       const teknisi = selectedTeknisi[i]
-      const isLeader = (i === leaderIndex)
+      const isLeader = i === leaderIndex
+
+      // Cegah duplicate assignment
+      if (assignedTeknisiIds.has(teknisi.id)) {
+        throw {
+          statusCode: 400,
+          message: `Teknisi ${teknisi.user.nama} sudah ditugaskan pada gangguan ini.`
+        }
+      }
 
       const assignment = await tx.assignment.create({
         data: {
@@ -201,12 +291,14 @@ async function assignTeknisiToGangguan(gangguanId, assignmentData, assignedBy) {
         },
         include: {
           teknisi: {
-            include: { user: true }
+            include: {
+              user: true
+            }
           }
         }
       })
 
-      // Initial status log saat assignment dibuat (status awal = assigned)
+      // Initial status log
       await tx.assignmentStatusLog.create({
         data: {
           assignmentId: assignment.id,
@@ -217,12 +309,16 @@ async function assignTeknisiToGangguan(gangguanId, assignmentData, assignedBy) {
       })
 
       assignments.push(assignment)
+      assignedTeknisiIds.add(teknisi.id)
 
-
-      // Update status teknisi ke busy
+      // Update status teknisi
       await tx.dataTeknisi.update({
-        where: { id: teknisi.id },
-        data: { status: 'busy' }
+        where: {
+          id: teknisi.id
+        },
+        data: {
+          status: 'busy'
+        }
       })
     }
 
