@@ -27,6 +27,36 @@ async function getAllTracking(req, res, next) {
   }
 }
 
+// getGangguanTracking: Mengambil data tracking teknisi yang terkait dengan gangguan tertentu
+async function getGangguanTracking(req, res, next) {
+  try {
+    const { gangguanId } = req.params
+
+    const result = await trackingService.getGangguanTracking(gangguanId)
+
+    res.json({
+      success: true,
+      data: result
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// getActiveGangguanList: Mengambil daftar gangguan yang sedang aktif (assigned, on_the_way, working)
+async function getActiveGangguanList(req, res, next) {
+  try {
+    const result = await trackingService.getActiveGangguanList()
+
+    res.json({
+      success: true,
+      data: result
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
 async function getTeknisiTracking(req, res, next) {
   try {
     const { teknisiId } = req.params
@@ -40,5 +70,7 @@ async function getTeknisiTracking(req, res, next) {
 export {
   postTracking,
   getAllTracking,
+  getGangguanTracking,
+  getActiveGangguanList,
   getTeknisiTracking
 }

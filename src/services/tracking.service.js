@@ -124,6 +124,164 @@ async function getLatestTracking() {
   }))
 }
 
+// getGangguanTracking: Mengambil data tracking teknisi yang terkait dengan gangguan tertentu
+async function getGangguanTracking(gangguanId) {
+  const gangguan = await prisma.gangguan.findUnique({
+    where: {
+      id: Number(gangguanId)
+    },
+    include: {
+      assignments: {
+        include: {
+          teknisi: {
+            include: {
+              user: true,
+              trackings: {
+                orderBy: {
+                  recordedAt: 'desc'
+                },
+                take: 1
+              }
+            }
+          }
+        }
+      }
+    }
+  })
+
+  if (!gangguan) {
+    throw {
+      statusCode: 404,
+      message: 'Gangguan tidak ditemukan'
+    }
+  }
+
+  return {
+    gangguan: {
+      id: gangguan.id,
+      judul: gangguan.judul,
+      area: gangguan.area,
+      status: gangguan.status,
+      priority: gangguan.priority,
+      latitude: gangguan.latitude,
+      longitude: gangguan.longitude,
+      alamat: gangguan.alamat
+    },
+
+    teknisi: gangguan.assignments.map((assignment) => {
+
+      const teknisi = assignment.teknisi
+
+      const latestTracking = teknisi.trackings[0]
+
+      const latitude =
+        latestTracking?.latitude ?? teknisi.latitude
+
+      const longitude =
+        latestTracking?.longitude ?? teknisi.longitude
+
+      const distance =
+        latitude !== null &&
+        longitude !== null
+          ? calculateDistanceKm(
+              gangguan.latitude,
+              gangguan.longitude,
+              latitude,
+              longitude
+            )
+          : null
+
+      return {
+        assignmentId: assignment.id,
+
+        teknisiId: teknisi.id,
+
+        userId: teknisi.userId,
+
+        nama: teknisi.user.nama,
+
+        email: teknisi.user.email,
+
+        noHp: teknisi.noHp,
+
+        areaKerja: teknisi.areaKerja,
+
+        isLeader: assignment.isLeader,
+
+        assignmentStatus: assignment.status,
+
+        statusTeknisi: teknisi.status,
+
+        lastSeen: teknisi.lastSeen,
+
+        distance,
+
+        location: latitude !== null && longitude !== null
+          ? {
+              latitude,
+              longitude,
+              recordedAt:
+                latestTracking?.recordedAt ??
+                teknisi.lastSeen
+            }
+          : null
+      }
+    })
+  }
+}
+
+// getActiveGangguanList: Mengambil list gangguan yang sedang aktif (assigned atau on_progress)
+async function getActiveGangguanList() {
+  const gangguanList = await prisma.gangguan.findMany({
+    where: {
+      status: {
+        in: ['assigned', 'on_progress']
+      }
+    },
+    orderBy: {
+      createdAt: 'desc'
+    },
+    select: {
+      id: true,
+      judul: true,
+      area: true,
+      status: true,
+      priority: true,
+      deadline: true,
+      latitude: true,
+      longitude: true,
+      alamat: true,
+      assignments: {
+        include: {
+          teknisi: {
+            include: {
+              user: true
+            }
+          }
+        }
+      }
+    }
+  })
+
+  return gangguanList.map((gangguan) => ({
+    id: gangguan.id,
+    judul: gangguan.judul,
+    area: gangguan.area,
+    status: gangguan.status,
+    priority: gangguan.priority,
+    deadline: gangguan.deadline,
+    latitude: gangguan.latitude,
+    longitude: gangguan.longitude,
+    alamat: gangguan.alamat,
+
+    totalTeknisi: gangguan.assignments.length,
+
+    leader:
+      gangguan.assignments.find((a) => a.isLeader)?.teknisi.user.nama ??
+      null
+  }))
+}
+
 async function getTrackingByTeknisi(teknisiId) {
   const trackings = await prisma.tracking.findMany({
     where: { teknisiId: Number(teknisiId) },
@@ -137,5 +295,7 @@ async function getTrackingByTeknisi(teknisiId) {
 export default {
   recordTracking,
   getLatestTracking,
+  getGangguanTracking,
+  getActiveGangguanList,
   getTrackingByTeknisi
 }
