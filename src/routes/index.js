@@ -1,5 +1,6 @@
 import { Router } from 'express'
 
+import dashboardRoute from "./dashboard.route.js";
 import authRoute from './auth.route.js'
 import userRoute from './user.route.js'
 import gangguanRoute from './gangguan.route.js'
@@ -11,12 +12,13 @@ const router = Router()
 // Health check
 router.get('/health', (req, res) => {
   res.json({
-    status: 'OK',
+    status: 'Oke jalan',
     timestamp: new Date().toISOString(),
     uptime: `${Math.floor(process.uptime())} seconds`
   })
 })
 
+router.use('/dashboard', dashboardRoute)
 router.use('/auth', authRoute)
 router.use('/users', userRoute)
 router.use('/issues', gangguanRoute)

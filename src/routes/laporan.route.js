@@ -17,8 +17,8 @@ router.post('/', authGuard, authorizeRole(['TEKNISI']), createLaporan)
 router.get('/my', authGuard, authorizeRole(['TEKNISI']), getMyLaporan)
 
 // ADMIN tidak boleh mengakses report selain miliknya
-router.get('/', authGuard, authorizeRole(['ADMIN']), getAllLaporan)
-router.get('/:id', authGuard, authorizeRole(['ADMIN']), getLaporanById)
+router.get('/', authGuard, authorizeRole(['ADMIN', 'SUPER_ADMIN']), getAllLaporan)
+router.get('/:id', authGuard, authorizeRole(['ADMIN', 'SUPER_ADMIN']), getLaporanById)
 
 
 
