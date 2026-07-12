@@ -5,9 +5,11 @@ import { PrismaClient } from '@prisma/client'
 import app from '../../src/app.js'
 import {
   TEST_ADMIN_EMAIL,
+  TEST_SUPER_ADMIN_EMAIL,
   TEST_TEKNISI_EMAIL,
   TEST_PASSWORD,
   TEST_ADMIN_NAME,
+  TEST_SUPER_ADMIN_NAME,
   TEST_TEKNISI_NAME
 } from './test-constants.js'
 
@@ -15,6 +17,7 @@ export const prisma = new PrismaClient()
 export const suiteUniqueId = Date.now()
 
 export const ADMIN_EMAIL = `${TEST_ADMIN_EMAIL.split('@')[0]}_${suiteUniqueId}@${TEST_ADMIN_EMAIL.split('@')[1]}`
+export const SUPER_ADMIN_EMAIL = `${TEST_SUPER_ADMIN_EMAIL.split('@')[0]}_${suiteUniqueId}@${TEST_SUPER_ADMIN_EMAIL.split('@')[1]}`
 export const TEKNISI_EMAIL = `${TEST_TEKNISI_EMAIL.split('@')[0]}_${suiteUniqueId}@${TEST_TEKNISI_EMAIL.split('@')[1]}`
 export const INACTIVE_EMAIL = `inactive_${suiteUniqueId}@test.com`
 
@@ -54,9 +57,20 @@ export async function seedBaseUsers({ includeInactive = false } = {}) {
       }
     })
 
+    const superAdminRole = await ensureRole(tx, 'SUPER_ADMIN')
     const adminRole = await ensureRole(tx, 'ADMIN')
     const teknisiRole = await ensureRole(tx, 'TEKNISI')
     const hashedPw = await bcrypt.hash(TEST_PASSWORD, 12)
+
+    const superAdmin = await tx.user.create({
+      data: {
+        nama: TEST_SUPER_ADMIN_NAME,
+        email: SUPER_ADMIN_EMAIL,
+        password: hashedPw,
+        isActive: true
+      }
+    })
+    await tx.userRole.create({ data: { userId: superAdmin.id, roleId: superAdminRole.id } })
 
     const admin = await tx.user.create({
       data: {

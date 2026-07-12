@@ -1,0 +1,237 @@
+Dokumentasi Backend Laporketua / TrackFO
+
+1. Gambaran Umum
+----------------
+Sistem ini adalah backend REST API untuk aplikasi TrackFO / Laporketua, yang mengelola:
+- Autentikasi dan otorisasi pengguna
+- Manajemen user dan teknisi
+- Pembuatan dan penanganan laporan gangguan (issue)
+- Assignment teknisi ke gangguan
+- Tracking lokasi teknisi
+- Pembuatan laporan penyelesaian gangguan
+
+2. Struktur Folder Utama
+------------------------
+- prisma/
+  - schema.prisma: definisi model database menggunakan Prisma ORM
+  - migrations/: riwayat migrasi database
+  - seed/: script untuk mengisi data awal
+- src/
+  - app.js: konfigurasi Express, middleware, router utama
+  - server.js: entrypoint server
+  - controllers/: menangani request, validasi input, dan panggilan service
+  - services/: logika bisnis utama dan akses database Prisma
+  - middlewares/: pengecekan otentikasi / otorisasi error handling
+  - routes/: pengaturan endpoint API
+  - utils/: utilitas, misalnya JWT helper
+- test/: unit, integration, e2e
+
+3. Alur Bisnis Utama
+--------------------
+3.1 Autentikasi
+- Endpoint: POST /api/auth/login
+- Input: email, password
+- Proses:
+  1. Cari user berdasarkan email
+  2. Pastikan user ada dan aktif (isActive = true)
+  3. Bandingkan password dengan bcrypt
+  4. Generate JWT token dengan payload {id, email}
+  5. Return token dan data user termasuk roles
+- Logout hanya memberitahu client untuk menghapus token karena JWT stateless
+
+3.2 Middleware
+- authGuard (src/middlewares/auth.middleware.js): cek header Authorization Bearer, verifikasi token JWT, load user dari DB, pastikan user aktif, pasang req.user
+- authorizeRole (src/middlewares/role.middleware.js): cek apakah role user cocok dengan daftar role yang diizinkan
+- Route penggunaan:
+  - /api/auth/logout: authGuard
+  - /api/users/me: authGuard + authorizeRole(['TEKNISI'])
+  - /api/issues: admin/superadmin only
+  - /api/tracking: teknisi/admin/superadmin tergantung endpoint
+
+3.3 User & Role Management
+- Model utama:
+  - User: id, nama, email, password, isActive, createdAt
+  - Role: id, nama_role
+  - UserRole: relasi many-to-many user-role
+  - DataTeknisi: profile teknisi, areaKerja, noHp, lokasi, status, lastSeen
+- Role:
+  - SUPER_ADMIN
+  - ADMIN
+  - TEKNISI
+- Fitur:
+  - SUPER_ADMIN / ADMIN dapat membuat user dengan roles
+  - SUPER_ADMIN saja dapat membuat ADMIN atau SUPER_ADMIN
+  - Roles di-normalisasi uppercase
+  - Jika role TEKNISI dipilih, otomatis buat record DataTeknisi
+  - Update user dan profil teknisi terpusat di service
+  - Soft delete user dengan isActive = false
+  - GET /api/users/areas mengembalikan area kerja unik teknisi aktif
+
+3.4 Gangguan / Issue Management
+- Model Gangguan:
+  - judul, deskripsi, area, latitude, longitude, alamat, status, priority, deadline
+  - status default = open
+- Endpoint:
+  - POST /api/issues: buat gangguan (ADMIN/SUPER_ADMIN)
+  - GET /api/issues: list semua gangguan (ADMIN/SUPER_ADMIN)
+  - GET /api/issues/:id: detail gangguan
+  - PATCH /api/issues/:id: update data gangguan
+  - GET /api/issues/my/tasks: teknisi melihat tugas mereka sendiri
+- Status gangguan:
+  - open → assigned → on_progress → done
+- Logika penting:
+  - Tidak boleh update gangguan yang sudah done
+  - Validasi koordinat latitude/longitude harus angka
+  - Area gangguan disimpan dan dibandingkan saat assignment teknisi
+
+3.5 Assignment Teknisi
+- Model Assignment:
+  - gangguanId, teknisiId, isLeader, status, assignedAt, assignedBy, method
+- Model AssignmentStatusLog: catat transisi status assignment
+- Model WorkEvidence: bukti pekerjaan, fileUrl, latitude, longitude
+- Logika assignment:
+  - Admin bisa assign manual / auto via service
+  - Manual: teknisiIds wajib disediakan
+  - Auto: sistem pilih teknisi available terdekat berdasarkan lat/lon gangguan
+  - Hanya teknisi dengan status available dan user aktif yang dapat dipilih
+  - Tidak boleh assign teknisi dari area berbeda dengan area gangguan
+  - Jika memilih banyak teknisi, leader harus ditentukan
+  - Setiap assigned teknisi status = busy
+  - Setelah assign, status gangguan diupdate ke assigned
+- Status assignment:
+  - Flow validasi dalam assignment.service.js:
+    - assigned → accepted / on_the_way
+    - accepted → on_the_way
+    - on_the_way → working
+    - working → pending_verification / rejected
+    - pending_verification → done / rejected
+    - rejected → working
+    - done → final
+  - Endpoint update status assignment: PATCH /api/assignments/:assignmentId/status
+  - Hanya teknisi yang di-assign dapat update status assignment tersebut
+  - Jika semua assignment untuk gangguan sudah done, maka gangguan diupdate ke done dan teknisi dikembalikan ke available
+
+3.6 Tracking Lokasi
+- Model Tracking: teknisiId, latitude, longitude, recordedAt
+- Teknisi melakukan POST /api/tracking dengan latitude dan longitude
+- Logika service:
+  - Jika koordinat belum berubah signifikan (< ~10 meter), mungkin tidak membuat record tracking baru
+  - Selalu update DataTeknisi terakhir: latitude, longitude, lastSeen, status = busy
+  - Tracking terakhir dapat ditampilkan:
+    - /api/tracking: untuk ADMIN semua teknisi aktif
+    - /api/tracking/teknisi/:teknisiId: untuk ADMIN detail teknisi
+    - /api/tracking/gangguan/:gangguanId: untuk ADMIN/SUPER_ADMIN detail tracking teknisi terkait gangguan
+    - /api/tracking/gangguan: list gangguan aktif
+  - `getGangguanTracking` juga menghitung jarak teknisi terhadap lokasi gangguan
+
+3.7 Laporan Penyelesaian
+- Model Laporan: gangguanId, teknisiId, catatan, foto, waktuSelesai
+- Endpoint:
+  - POST /api/reports: buat laporan (TEKNISI)
+  - GET /api/reports/my: teknisi melihat laporan sendiri
+  - GET /api/reports: admin/superadmin semua laporan
+  - GET /api/reports/:id: detail laporan
+- Logika laporan:
+  - Hanya leader assignment aktif boleh submit laporan
+  - Validasi gangguan harus ada dan belum done
+  - Setelah laporan dibuat:
+    - Semua assignment gangguan diupdate ke status done
+    - Gangguan diupdate ke done
+    - Semua teknisi terkait diupdate status = available
+  - Ini menutup siklus pengerjaan gangguan
+
+4. File & Endpoint Penting
+--------------------------
+- src/server.js: start app dan listen port
+- src/app.js: registrasi middleware dasar dan route /api
+- src/routes/index.js: titik masuk router utama
+- src/routes/auth.route.js: login, logout, change password
+- src/routes/user.route.js: manajemen user/teknisi/admin
+- src/routes/gangguan.route.js: gangguan dan task teknisi
+- src/routes/tracking.route.js: tracking lokasi dan gangguan aktif
+- src/routes/laporan.route.js: pembuatan laporan dan query laporan
+- src/controllers/*.js: handle request + response
+- src/services/*.js: implementasi logika bisnis dan Prisma
+- src/middlewares/auth.middleware.js: verifikasi JWT & load user
+- src/middlewares/role.middleware.js: otorisasi berdasarkan role
+- src/utils/jwt.js: sign & verify JWT
+- prisma/schema.prisma: model database utama
+
+5. Alur Bisnis Lengkap
+-----------------------
+5.1 Saat teknisi login:
+- User mengirim email/password ke /api/auth/login
+- Sistem merespon token JWT, nama, email, role
+- Token dipakai untuk request selanjutnya di header Authorization: Bearer <token>
+
+5.2 Admin/Super Admin membuat gangguan:
+- POST /api/issues
+- Buat record gangguan dengan status open
+- Data penting: area, koordinat, deskripsi, priority, deadline
+
+5.3 Admin assign teknisi:
+- POST /api/assignments/:id/assign (melalui route assignment nested, implikasi service assignment)
+- Jika manual, pilih teknisi dan leader
+- Jika auto, sistem memilih teknisi available terdekat
+- Status teknisi = busy
+- Gangguan status = assigned
+- Assignment status awal = assigned
+
+5.4 Teknisi update status tugas:
+- PATCH /api/assignments/:assignmentId/status
+- Flow status dikontrol ketat: assigned → … → done
+- Jika assignment done dan semua assignment terkait selesai, gangguan selesai
+- Status teknisi kembali available ketika semua tugas gangguan selesai
+
+5.5 Teknisi mengirim tracking:
+- POST /api/tracking
+- Sistem simpan posisi baru jika perubahan >= 10 meter
+- Update posisi terakhir teknisi pada DataTeknisi
+- Data tracking dipakai untuk memantau pekerjaan dan jarak ke gangguan
+
+5.6 Leader submit laporan:
+- POST /api/reports
+- Validasi leader di assignment aktif
+- Create laporan kerja, tutup gangguan, ubah assignment jadi done, set teknisi available
+
+6. Kode Kunci & Logic Penting
+-----------------------------
+- `src/services/auth.service.js`: login + password hash + JWT token
+- `src/services/user.service.js`: create user + roles + profil teknisi; update profile; role-based user queries
+- `src/services/assignment.service.js`:
+  - `findBestTeknisi`: pencarian teknisi terdekat dengan Haversine
+  - `validateStatusTransition`: enforce workflow status assignment
+  - `assignTeknisiToGangguan`: manual / auto assignment, leader selection, update status teknisi, update gangguan
+  - `updateAssignmentStatus`: status flow, log history, selesaikan gangguan bila semua assignment done
+- `src/services/tracking.service.js`:
+  - `recordTracking`: threshold 0.01 km untuk simpan titik new position
+  - `getGangguanTracking`: kembalikan tracking teknisi untuk gangguan beserta jarak ke gangguan
+- `src/services/laporan.service.js`:
+  - `createLaporan`: validasi leader, create laporan, close gangguan, set semua teknisi available
+
+7. Kesimpulan Sistem
+---------------------
+Sistem backend ini menghubungkan peran ADMIN/SUPER_ADMIN dan TEKNISI dengan proses:
+1. registrasi user / teknisi
+2. buat dan kelola laporan gangguan
+3. assign teknisi ke gangguan
+4. update status tugas teknisi
+5. tracking realtime lokasi teknisi
+6. submit laporan penyelesaian dan tutup gangguan
+
+Informasi penting yang harus diketahui:
+- Role-based access secara konsisten diterapkan pada route
+- JWT stateless dipakai tanpa refresh token endpoint saat ini
+- Semua operasi data utama melalui Prisma ORM
+- Logika bisnis berada di service, controller hanya meneruskan data dan format response
+- Data teknisi dan tracking memengaruhi pemilihan teknisi auto dan status tugas
+
+8. Saran Penggunaan
+--------------------
+- Pastikan `process.env.JWT_SECRET` ditetapkan sebelum menjalankan server
+- Gunakan route `/api/tracking` hanya untuk teknisi
+- Hanya SUPER_ADMIN dapat membuat ADMIN/SUPER_ADMIN dan menghapus user
+- Untuk menambah fungsi delete gangguan, implementasikan controller delete dan route
+- Pastikan data `area` teknisi dan `area` gangguan konsisten agar assignment area-based bekerja
+
+Dokumentasi ini mencakup alur bisnis sistem, fungsi utama, logic penting, dan file-file penting yang perlu diketahui untuk mengerti backend Laporketua / TrackFO.

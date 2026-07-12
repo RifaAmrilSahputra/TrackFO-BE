@@ -5,6 +5,7 @@ import { TEST_PASSWORD } from '../helpers/test-constants.js'
 import {
   prisma,
   ADMIN_EMAIL,
+  SUPER_ADMIN_EMAIL,
   TEKNISI_EMAIL,
   makeEmail,
   seedBaseUsers,
@@ -13,12 +14,13 @@ import {
 } from '../helpers/test-helpers.js'
 
 describe('User API', () => {
-  let adminToken, teknisiToken
+  let adminToken, superAdminToken, teknisiToken
 
   beforeEach(async () => {
     await resetLoginLimiter(loginLimiter)
     await seedBaseUsers()
     adminToken = await getAuthToken(ADMIN_EMAIL, TEST_PASSWORD)
+    superAdminToken = await getAuthToken(SUPER_ADMIN_EMAIL, TEST_PASSWORD)
     teknisiToken = await getAuthToken(TEKNISI_EMAIL, TEST_PASSWORD)
   })
 
@@ -133,6 +135,96 @@ describe('User API', () => {
         .set('Authorization', `Bearer ${teknisiToken}`)
 
       expect(res.status).toBe(403)
+    })
+  })
+
+  describe('SUPER_ADMIN user management', () => {
+    it('should list all admin users', async () => {
+      const res = await request(app)
+        .get('/api/users/admins')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+
+      expect(res.status).toBe(200)
+      expect(res.body.success).toBe(true)
+      expect(Array.isArray(res.body.data)).toBe(true)
+      expect(res.body.data.some((user) => user.roles.includes('ADMIN'))).toBe(true)
+    })
+
+    it('should create a new admin account', async () => {
+      const newAdmin = {
+        name: 'New Admin',
+        email: makeEmail('newadmin'),
+        password: 'adminpass123',
+        roles: ['ADMIN']
+      }
+
+      const res = await request(app)
+        .post('/api/users')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(newAdmin)
+
+      expect(res.status).toBe(201)
+      expect(res.body.success).toBe(true)
+      expect(res.body.data.email).toBe(newAdmin.email)
+      expect(res.body.data.roles).toContain('ADMIN')
+    })
+
+    it('should update an admin account with new details', async () => {
+      const newAdmin = {
+        name: 'Updatable Admin',
+        email: makeEmail('updatableadmin'),
+        password: 'adminpass123',
+        roles: ['ADMIN']
+      }
+
+      const created = await request(app)
+        .post('/api/users')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(newAdmin)
+
+      expect(created.status).toBe(201)
+
+      const updated = await request(app)
+        .patch(`/api/users/${created.body.data.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send({
+          name: 'Updated Admin Name',
+          roles: ['ADMIN', 'TEKNISI'],
+          noHp: '081234567899',
+          areaKerja: 'Admin Area'
+        })
+
+      expect(updated.status).toBe(200)
+      expect(updated.body.success).toBe(true)
+      expect(updated.body.data.nama).toBe('Updated Admin Name')
+      expect(updated.body.data.roles).toEqual(expect.arrayContaining(['ADMIN', 'TEKNISI']))
+      expect(updated.body.data.teknisi).not.toBeNull()
+    })
+
+    it('should delete an admin account', async () => {
+      const newAdmin = {
+        name: 'Deletable Admin',
+        email: makeEmail('deletableadmin'),
+        password: 'adminpass123',
+        roles: ['ADMIN']
+      }
+
+      const created = await request(app)
+        .post('/api/users')
+        .set('Authorization', `Bearer ${superAdminToken}`)
+        .send(newAdmin)
+
+      expect(created.status).toBe(201)
+
+      const deleted = await request(app)
+        .delete(`/api/users/${created.body.data.id}`)
+        .set('Authorization', `Bearer ${superAdminToken}`)
+
+      expect(deleted.status).toBe(200)
+      expect(deleted.body.success).toBe(true)
+
+      const user = await prisma.user.findUnique({ where: { id: created.body.data.id } })
+      expect(user.isActive).toBe(false)
     })
   })
 

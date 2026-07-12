@@ -79,6 +79,15 @@ async function updateFullUserProfile(id, data) {
   const userId = Number(id)
 
   return await prisma.$transaction(async (tx) => {
+    const existingUser = await tx.user.findUnique({
+      where: { id: userId },
+      include: { roles: { include: { role: true } }, teknisi: true }
+    })
+
+    if (!existingUser) {
+      throw { statusCode: 404, message: 'User tidak ditemukan' }
+    }
+
     // 1. Update Data Dasar User
     const userUpdateData = {}
     if (data.nama) userUpdateData.nama = data.nama
@@ -91,24 +100,60 @@ async function updateFullUserProfile(id, data) {
       })
     }
 
-    // 2. Update Data Teknisi (Upsert: Jika belum ada maka buat, jika ada maka update)
-    if (data.noHp || data.areaKerja || data.alamat || data.latitude !== undefined) {
+    // 2. Update Roles jika diminta
+    let effectiveRoles = existingUser.roles.map(ur => ur.role.nama_role.toUpperCase())
+    if (data.roles) {
+      if (!Array.isArray(data.roles) || data.roles.length === 0) {
+        throw { statusCode: 400, message: 'Minimal pilih satu role' }
+      }
+
+      const normalizedRoles = Array.from(new Set(data.roles.map(r => r.toUpperCase())))
+      const roleRecords = await tx.role.findMany({
+        where: { nama_role: { in: normalizedRoles } }
+      })
+
+      if (roleRecords.length !== normalizedRoles.length) {
+        throw { statusCode: 400, message: 'Role tidak valid' }
+      }
+
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          roles: {
+            deleteMany: {},
+            create: roleRecords.map((role) => ({
+              role: { connect: { id: role.id } }
+            }))
+          }
+        }
+      })
+
+      effectiveRoles = normalizedRoles
+    }
+
+    const hasTeknisiRole = effectiveRoles.includes('TEKNISI')
+
+    if (hasTeknisiRole) {
       await tx.dataTeknisi.upsert({
         where: { userId: userId },
         update: {
           noHp: data.noHp,
           areaKerja: data.areaKerja,
           alamat: data.alamat,
-          latitude: data.latitude ? parseFloat(data.latitude) : undefined,
-          longitude: data.longitude ? parseFloat(data.longitude) : undefined,
+          latitude: data.latitude !== undefined ? parseFloat(data.latitude) : undefined,
+          longitude: data.longitude !== undefined ? parseFloat(data.longitude) : undefined,
         },
         create: {
           userId: userId,
-          noHp: data.noHp ?? '',
-          areaKerja: data.areaKerja ?? '',
-          alamat: data.alamat,
+          noHp: data.noHp ?? existingUser.teknisi?.noHp ?? '',
+          areaKerja: data.areaKerja ?? existingUser.teknisi?.areaKerja ?? '',
+          alamat: data.alamat ?? existingUser.teknisi?.alamat,
+          latitude: data.latitude !== undefined ? parseFloat(data.latitude) : existingUser.teknisi?.latitude,
+          longitude: data.longitude !== undefined ? parseFloat(data.longitude) : existingUser.teknisi?.longitude,
         }
       })
+    } else if (existingUser.teknisi) {
+      await tx.dataTeknisi.delete({ where: { userId: userId } })
     }
 
     // 3. Ambil data terbaru

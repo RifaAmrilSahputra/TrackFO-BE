@@ -4,10 +4,11 @@ import crypto from 'crypto'
 // Helper validasi email
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 
-// CREATE USER (Admin)
+// CREATE USER (Admin / SUPER_ADMIN)
 async function createUser(req, res, next) {
   try {
     const { name, email, password, roles, ...teknisiData } = req.body
+    const authUser = req.user
 
     // 1. Validasi Input
     if (!name?.trim() || !email?.trim()) {
@@ -18,6 +19,19 @@ async function createUser(req, res, next) {
     }
     if (!roles || !Array.isArray(roles) || roles.length === 0) {
       return res.status(400).json({ success: false, message: 'Minimal pilih satu role' })
+    }
+
+    const normalizedRoles = roles.map(r => r.toUpperCase())
+    const isSuperAdmin = authUser.roles.includes('SUPER_ADMIN')
+
+    if (!isSuperAdmin) {
+      const forbiddenRoles = normalizedRoles.filter((role) => role === 'ADMIN' || role === 'SUPER_ADMIN')
+      if (forbiddenRoles.length > 0) {
+        return res.status(403).json({
+          success: false,
+          message: 'Hanya SUPER_ADMIN yang dapat membuat akun ADMIN atau SUPER_ADMIN'
+        })
+      }
     }
 
     // 2. Password Management
@@ -33,7 +47,7 @@ async function createUser(req, res, next) {
       nama: name.trim(),
       email: email.toLowerCase().trim(),
       password: finalPassword,
-      roles: roles.map(r => r.toUpperCase()),
+      roles: normalizedRoles,
       ...teknisiData
     })
 
@@ -155,6 +169,37 @@ async function getMyProfile(req, res, next) {
   }
 }
 
+// GET ALL ADMINS (SUPER_ADMIN)
+async function getAllAdmins(req, res, next) {
+  try {
+    const admins = await userService.getUsersByRole('ADMIN')
+
+    res.json({
+      success: true,
+      message: 'Data admin berhasil diambil',
+      data: admins
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// GET USER BY ID (SUPER_ADMIN)
+async function getUserById(req, res, next) {
+  try {
+    const { id } = req.params
+    const user = await userService.getUserById(id)
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User tidak ditemukan' })
+    }
+
+    res.json({ success: true, data: user })
+  } catch (err) {
+    next(err)
+  }
+}
+
 // GET Areas
 async function getAreas(req, res, next) {
   try {
@@ -176,5 +221,7 @@ export {
   updateTeknisi, 
   updateMyProfile,
   getMyProfile,
-  getAreas
+  getAreas,
+  getAllAdmins,
+  getUserById
 } 
