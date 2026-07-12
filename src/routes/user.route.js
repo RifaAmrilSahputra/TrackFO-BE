@@ -25,17 +25,17 @@ router.patch('/me', authGuard, authorizeRole(['TEKNISI']), updateMyProfile)
 router.get('/admins', authGuard, authorizeRole(['SUPER_ADMIN']), getAllAdmins)
 router.get('/teknisi', authGuard, authorizeRole(['SUPER_ADMIN', 'ADMIN']), getAllTeknisi)
 router.post('/', authGuard, authorizeRole(['SUPER_ADMIN', 'ADMIN']), createUser)
-router.get('/:id', authGuard, authorizeRole(['SUPER_ADMIN']), getUserById)
-
-// By ID
-router.patch('/:id', authGuard, authorizeRole(['SUPER_ADMIN', 'ADMIN', 'TEKNISI']), updateTeknisi)
-router.delete('/:id', authGuard, authorizeRole(['SUPER_ADMIN']), deleteUser)
-
 router.get(
   '/areas',
   authGuard,
   authorizeRole(['SUPER_ADMIN']),
   getAreas
 )
+
+router.get('/:id', authGuard, authorizeRole(['SUPER_ADMIN']), getUserById)
+
+// By ID
+router.patch('/:id', authGuard, authorizeRole(['SUPER_ADMIN', 'ADMIN', 'TEKNISI']), updateTeknisi)
+router.delete('/:id', authGuard, authorizeRole(['SUPER_ADMIN']), deleteUser)
 
 export default router
