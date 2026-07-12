@@ -28,7 +28,7 @@ router.post('/', authGuard, authorizeRole(['SUPER_ADMIN', 'ADMIN']), createUser)
 router.get(
   '/areas',
   authGuard,
-  authorizeRole(['SUPER_ADMIN']),
+  authorizeRole(['SUPER_ADMIN', 'ADMIN']),
   getAreas
 )
 
