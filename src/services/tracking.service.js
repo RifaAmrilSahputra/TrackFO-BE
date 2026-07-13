@@ -1,6 +1,6 @@
 import prisma from '../../config/prisma.js'
 
-const MOVEMENT_THRESHOLD_KM = 0.01 // ~10 meter
+const MOVEMENT_THRESHOLD_KM = 0.003 // ~3 meter
 
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
   const R = 6371

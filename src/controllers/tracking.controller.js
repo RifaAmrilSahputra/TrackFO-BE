@@ -4,6 +4,23 @@ async function postTracking(req, res, next) {
   try {
     const result = await trackingService.recordTracking(req.user.id, req.body.latitude, req.body.longitude)
 
+    // Emit realtime tracking update via Socket.IO if enabled and a new tracking record was created
+    try {
+      const io = req.app.get && req.app.get('io')
+      if (io && result.tracked) {
+        const payload = {
+          teknisiId: result.teknisiId,
+          latitude: result.trackingRecord?.latitude ?? parseFloat(req.body.latitude),
+          longitude: result.trackingRecord?.longitude ?? parseFloat(req.body.longitude),
+          recordedAt: result.trackingRecord?.recordedAt ?? result.lastSeen ?? new Date()
+        }
+        io.emit('tracking:update', payload)
+      }
+    } catch (e) {
+      // non-fatal: don't break response if emit fails
+      console.error('Failed to emit tracking:update', e)
+    }
+
     res.json({
       success: true,
       message: result.tracked ? 'Tracking tersimpan' : 'Tidak ada perubahan lokasi signifikan',
